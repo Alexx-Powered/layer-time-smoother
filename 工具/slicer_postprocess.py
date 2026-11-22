@@ -29,7 +29,7 @@ def atomic_write(path, data):
         Path(temporary).unlink(missing_ok=True)
 
 
-def run_job(path, strength=None, *, destination=None, audit=None):
+def run_job(path, strength=None, *, destination=None, audit=None, on_preview=None):
     path = Path(path)
     target = Path(destination) if destination else path
     if strength is not None and (not math.isfinite(strength) or not 0 <= strength <= 100):
@@ -49,7 +49,7 @@ def run_job(path, strength=None, *, destination=None, audit=None):
             raise ValueError("Use the original G-code to generate a new candidate audit.")
         return "Already applied: " + policy
     assessment = {} if strength is None else None
-    output, _ = process(data,strength,mode="curve",automatic_report=assessment)
+    output, rows = process(data,strength,mode="curve",automatic_report=assessment)
     if assessment is None:
         message = f"manual smoothness={strength:g}"
     else:
@@ -70,6 +70,8 @@ def run_job(path, strength=None, *, destination=None, audit=None):
             atomic_write(Path(audit),report_bytes)
         except OSError as exc:
             raise OSError(f"G-code ready at {target}, but could not save audit {audit}: {exc}") from exc
+    if on_preview and rows:
+        on_preview(data, rows)
     return message
 
 

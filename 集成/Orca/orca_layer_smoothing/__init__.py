@@ -1,9 +1,15 @@
-"""OrcaSlicer plugin entry point."""
+"""OrcaSlicer slicing capability and its embedded layer-time viewer."""
 import json
+from pathlib import Path
 
 import orca
 
-from .slicer_postprocess import run_job
+from .automatic_curve import original_total
+from .slicer_postprocess import atomic_write, run_job
+
+
+def preview_path():
+    return Path(orca.host.plugin.storage()) / "last-export.json"
 
 
 class LayerTime(orca.slicing.SlicingPipelineCapabilityBase):
@@ -17,33 +23,32 @@ class LayerTime(orca.slicing.SlicingPipelineCapabilityBase):
         return True
 
     def get_config_ui(self):
-        return """<!doctype html><html lang="zh-CN"><meta charset="utf-8">
-<style>
-:root {color-scheme:light dark;font:16px system-ui,sans-serif}
-body {margin:16px;max-width:32em} label {display:block} input {width:100%;margin:14px 0}
-button {padding:6px 14px;font:inherit} output {font-variant-numeric:tabular-nums}
-</style><label for="strength">层时间平滑系数　<output id="value" for="strength"></output></label>
-<input type="range" min="0" max="100" step="0.5" id="strength">
-<button type="button" id="save">保存系数</button>
-<script>
-const stored=window.orca.getConfig();
-const settings=typeof stored==='string'?JSON.parse(stored):stored;
-const slider=document.getElementById('strength'), value=document.getElementById('value');
-slider.value=settings?.smoothness??65;
-function display(){value.textContent=slider.value}
-display();slider.addEventListener('input',display);
-document.getElementById('save').onclick=()=>window.orca.saveConfig({smoothness:slider.valueAsNumber});
-</script></html>"""
+        package = Path(__file__).parent
+        try:
+            payload = json.loads(preview_path().read_text(encoding="utf-8"))
+        except (OSError, ValueError, RuntimeError):
+            payload = json.loads((package / "demo.json").read_text(encoding="utf-8"))
+        html = (package / "preview.html").read_text(encoding="utf-8")
+        data = json.dumps(payload, ensure_ascii=False, allow_nan=False, separators=(",", ":")).replace("<", "\\u003c")
+        return html.replace("__PLANNER__", (package / "planner.js").read_text(encoding="utf-8")).replace("__DATA__", data)
 
     def execute(self, ctx):
         if ctx.step != orca.slicing.Step.psGCodePostProcess:
             return orca.ExecutionResult.success()
         try:
-            config = json.loads(self.get_config() or "{}")
-            strength = float(config.get("smoothness",65))
-            return orca.ExecutionResult.success(run_job(ctx.gcode_path,strength))
-        except (OSError,ValueError,TypeError,AttributeError) as exc:
-            return orca.ExecutionResult.failure(orca.PluginResult.RecoverableError,str(exc))
+            settings = json.loads(self.get_config() or "{}")
+            strength = float(settings.get("smoothness", 65))
+            def remember(data, rows):
+                before = [r[2] for r in rows]
+                total, _ = original_total(data, before)
+                payload = dict(name=Path(ctx.output_name).name, total=total, strength=strength,
+                               before=before, z=[r[1] for r in rows], fastest=[r[3] for r in rows],
+                               editable=[r[-1] != "protected" for r in rows], exported=[r[6] for r in rows])
+                atomic_write(preview_path(), json.dumps(payload, allow_nan=False).encode("utf-8"))
+            message = run_job(ctx.gcode_path, strength, on_preview=remember)
+            return orca.ExecutionResult.success(message)
+        except (OSError, ValueError, TypeError, RuntimeError) as exc:
+            return orca.ExecutionResult.failure(orca.PluginResult.RecoverableError, str(exc))
 
 
 @orca.plugin

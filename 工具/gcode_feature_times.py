@@ -158,6 +158,10 @@ def estimate(data, *, motion_feed=None, change_events=None):
     change = None
     sections = set()
     machine_flag = ""
+    # Orca's A1 templates bracket optional firmware moves with SKIPPABLE comments.
+    # Estimate a normal print with recording and runtime nozzle inspection disabled.
+    a1_skippable = False
+    skip_type = ""
     heights, totals, notes, blocks = [], [], [], []
     for number, line in enumerate(lines, 1):
         raw, _, comment = line.partition(";")
@@ -165,6 +169,12 @@ def estimate(data, *, motion_feed=None, change_events=None):
         if CHECKSUM.match(line):
             raise ValueError(f"Line {number}: checksummed input is unsupported.")
         if not raw:
+            if profile.get("printer_model") == "Bambu Lab A1":
+                if comment in {"SKIPPABLE_START", "SKIPPABLE_END"}:
+                    a1_skippable = comment == "SKIPPABLE_START"
+                    skip_type = ""
+                elif a1_skippable and comment.startswith("SKIPTYPE: "):
+                    skip_type = comment.removeprefix("SKIPTYPE: ")
             if single_ams and layer < 0 and line.startswith(";VT"):
                 initial = re.match(r";VT(\d+)\b", line)
                 if initial and int(initial[1]) < len(nozzle_map):
@@ -252,7 +262,8 @@ def estimate(data, *, motion_feed=None, change_events=None):
         if conditional:
             # Power-loss resume repeats the parking moves only when recovering an interrupted print.
             recovery = (resident_dual or single_ams) and "CP TOOLCHANGE" in sections and machine_flag == "POWERLOSS_RESUME_FLAG"
-            if layer >= 0 and not recovery:
+            optional_a1 = a1_skippable and skip_type in {"timelapse", "head_wrap_detect"}
+            if layer >= 0 and not (recovery or optional_a1):
                 notes[layer].add("conditional " + cmd)
             continue
         if single_ams and cmd.startswith("T") and cmd[1:].isdigit() and int(cmd[1:]) < len(nozzle_map):
@@ -286,7 +297,7 @@ def estimate(data, *, motion_feed=None, change_events=None):
             active_tool = tool
             loaded_tools.add(tool)
             continue
-        if single_ams and cmd in {"M624", "M625"}:  # printed-object scope
+        if (single_ams or profile.get("printer_model") == "Bambu Lab A1") and cmd in {"M624", "M625"}:  # printed-object scope
             continue
         if change is not None and cmd == "M620.10":
             args = dict(WORD.findall(raw[match.end():]))

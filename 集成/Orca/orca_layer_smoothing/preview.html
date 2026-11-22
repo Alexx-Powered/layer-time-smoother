@@ -1,0 +1,74 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8">
+<style>
+*{box-sizing:border-box} :root{color-scheme:light dark;font:14px/1.45 "Segoe UI","Microsoft YaHei",sans-serif;color:#20343a;background:#fff}
+:root[data-orca-theme=dark]{color:#e2edef;background:#20282b;--grid:#485458;--soft:#2b373b;--orig:#b1c5c9;--accent:#48cdb4}
+body{margin:0;padding:10px 14px;--line:var(--grid,#d8e1e1)} h2{margin:7px 0 0;font-size:19px} p{margin:4px 0 8px}
+.label{font-size:12px;opacity:.8} .ctrl,.toolbar,.leg,.stats{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.ctrl{margin:9px 0}.ctrl input[type=range]{flex:1;min-width:70px;accent-color:#008978}input,button{font:inherit}
+input[type=number]{width:67px;padding:3px 4px}button{border:1px solid var(--line);border-radius:4px;padding:4px 9px;background:var(--soft,#f1f6f5);color:inherit;cursor:pointer}
+button.primary{background:#007c70;color:white;border-color:#007c70} button[aria-pressed=true]{border-color:#008e80}
+.stats{background:var(--soft,#eef5f4);padding:7px 9px;justify-content:space-between;margin-bottom:8px;font-variant-numeric:tabular-nums}
+.leg{font-size:12px}.key{display:inline-block;width:18px;height:0;border-top:3px solid var(--accent,#008775);vertical-align:middle;margin-right:4px}.key.old{border-color:var(--orig,#70838a);border-top-style:dashed}
+.chart{width:100%;height:185px;display:block;touch-action:none}.grid{stroke:var(--line);stroke-width:1}.oldline,.newline{fill:none;stroke:var(--orig,#70838a);stroke-width:1.6;stroke-dasharray:5 2}.newline{stroke:var(--accent,#008775);stroke-width:2.1;stroke-dasharray:none}svg text{fill:currentColor;font:11px "Segoe UI",sans-serif}
+.readout{font-variant-numeric:tabular-nums;min-height:20px}.toolbar{margin:4px 0;font-size:12px}#status{font-size:12px}
+</style></head><body>
+<h2>层时间曲线</h2><p class="label" id="source"></p>
+<div class="ctrl"><label for="s">平滑系数</label><input type="range" id="s" min="0" max="100" step=".5"><input aria-label="输入平滑系数" id="num" type="number" min="0" max="100" step=".5"><button class="primary" id="save">保存</button><span id="status" role="status"></span></div>
+<div class="stats"><span>预计整盘 <b id="total"></b></span><span>相对原盘 <b id="delta"></b></span></div>
+<div class="leg"><span><i class="key old"></i>原始切片</span><span><i class="key"></i><span id="kind"></span></span><span>秒 / 层</span></div>
+<svg class="chart" id="chart" role="img" aria-label="原始切片与当前系数的逐层时间"></svg>
+<div class="toolbar"><button id="all">全盘</button><button id="detail">局部 31 层</button><label>定位到第 <input id="layer" type="number" min="1"> 层</label></div>
+<p class="readout" id="read"></p>
+<script id="source-data" type="application/json">__DATA__</script>
+<script>__PLANNER__</script>
+<script>
+const data=JSON.parse(document.getElementById('source-data').textContent), n=data.before.length;
+const el=id=>document.getElementById(id), ns='http://www.w3.org/2000/svg', plot=el('chart');
+const sum=a=>a.reduce((v,t)=>v+t,0);
+let values=[], index=Math.min(n-1,Math.max(1,Math.floor(n/2))), zoom=false, low=0, high=n-1, frame=0;
+const originalTotal=data.total, baselineSum=sum(data.before);
+el('source').textContent=(data.exported?'最近一次插件导出 · ':'内置示例 · ')+data.name+' · '+n+' 层';
+el('layer').max=n;
+function duration(seconds){let t=Math.round(Math.abs(seconds));return (t>=3600?Math.floor(t/3600)+' 时 ':'')+Math.floor(t%3600/60)+' 分 '+t%60+' 秒'}
+function svg(tag,attrs,content){const a=document.createElementNS(ns,tag);for(const [k,v] of Object.entries(attrs))a.setAttribute(k,v);if(content!==undefined)a.textContent=content;plot.appendChild(a);return a}
+function readout(){
+  el('layer').value=index+1;
+  el('read').textContent='第 '+(index+1)+' 层 · Z '+data.z[index].toFixed(2)+' mm　原始 '+data.before[index].toFixed(2)+' 秒 → '+values[index].toFixed(2)+' 秒';
+}
+function draw(){
+  if(!values.length)return;
+  const w=Math.max(220,plot.clientWidth),h=185,left=42,right=w-13,top=12,bottom=h-28;
+  low=zoom?Math.max(0,Math.min(n-31,index-15)):Math.min(1,n-1);high=zoom?Math.min(n-1,low+30):n-1;
+  let min=Infinity,max=0;
+  for(let i=low;i<=high;i++){min=Math.min(min,data.before[i],values[i]);max=Math.max(max,data.before[i],values[i])}
+  const pad=Math.max(.2,(max-min)*.09);min=Math.max(0,min-pad);max+=pad;
+  const x=i=>left+(right-left)*(i-low)/Math.max(1,high-low),y=t=>bottom-(t-min)/(max-min)*(bottom-top);
+  plot.replaceChildren();plot.setAttribute('viewBox','0 0 '+w+' '+h);
+  for(let j=0;j<=3;j++){const t=min+(max-min)*j/3;svg('line',{x1:left,x2:right,y1:y(t),y2:y(t),class:'grid'});svg('text',{x:left-6,y:y(t)+4,'text-anchor':'end'},t.toFixed(max<20?1:0))}
+  for(let j=0;j<3;j++){const i=Math.round(low+j*(high-low)/2);svg('text',{x:x(i),y:h-7,'text-anchor':j===0?'start':j===2?'end':'middle'},(i+1)+' 层')}
+  for(const [series,cls] of [[data.before,'oldline'],[values,'newline']]){
+    let pts=[];for(let i=low;i<=high;i++)pts.push(x(i).toFixed(2)+','+y(series[i]).toFixed(2));
+    svg('polyline',{points:pts.join(' '),class:cls});
+  }
+  if(index>=low&&index<=high)svg('circle',{cx:x(index),cy:y(values[index]),r:3.3,fill:'var(--accent,#008775)'});
+  el('all').setAttribute('aria-pressed',!zoom);el('detail').setAttribute('aria-pressed',zoom);readout()
+}
+function update(){
+  const k=Number(el('s').value),real=data.exported&&data.strength===k;
+  values=real?data.exported:layerTargets(data.fastest,data.editable,k);
+  const delta=sum(values)-baselineSum;
+  el('kind').textContent=real?'导出重算':'调速预估';
+  el('total').textContent=duration(originalTotal+delta);
+  el('delta').textContent=(delta<0?'−':'+')+duration(delta)+' ('+(delta>=0?'+':'')+(100*delta/originalTotal).toFixed(1)+'%)';draw()
+}
+function setStrength(v){if(!Number.isFinite(v))return;const k=Math.max(0,Math.min(100,Math.round(v*2)/2));el('s').value=el('num').value=k;cancelAnimationFrame(frame);frame=requestAnimationFrame(update)}
+el('s').oninput=()=>{el('status').textContent='';setStrength(el('s').valueAsNumber)};
+el('num').onchange=()=>{el('status').textContent='';setStrength(el('num').valueAsNumber)};
+el('save').onclick=()=>{window.orca.saveConfig({smoothness:el('s').valueAsNumber});el('status').textContent='已提交'};
+window.orca.onConfig(cfg=>{setStrength(Number(cfg?.smoothness??65));el('save').disabled=!!window.orca.getContext()?.readOnly});
+el('all').onclick=()=>{zoom=false;draw()};el('detail').onclick=()=>{zoom=true;draw()};
+el('layer').onchange=()=>{if(Number.isFinite(el('layer').valueAsNumber)){index=Math.max(0,Math.min(n-1,Math.round(el('layer').valueAsNumber)-1));zoom=true;draw()}};
+plot.onpointermove=e=>{if(zoom)return;const rect=plot.getBoundingClientRect(),t=(e.clientX-rect.left-42)/(rect.width-55);index=Math.max(low,Math.min(high,Math.round(low+t*(high-low))));draw()};
+plot.onclick=e=>{if(!zoom){zoom=true;draw()}};
+new ResizeObserver(draw).observe(plot);
+</script></body></html>
