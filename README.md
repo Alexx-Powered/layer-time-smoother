@@ -2,35 +2,37 @@
 
 通过调整**稀疏填充和内部实心填充的速度**，让相邻打印层的用时平缓过渡，用于研究 FDM 打印的冷却纹。Bambu Studio 版按盘自动选平滑度，OrcaSlicer 插件提供手动滑块。两者共用同一引擎，只调整模型填充的进给速度，保留首层、外墙与内墙、支撑、材料塔、换料和冲刷动作，无需新增暂停。
 
-**[下载安装包](https://github.com/Alexx-Powered/layer-time-smoother/releases/tag/v0.2.0) · [安装与使用](#安装与使用) · [下载离线交互曲线](https://github.com/Alexx-Powered/layer-time-smoother/releases/download/v0.2.0/layer-time-explorer.html)**
+**[下载安装包](https://github.com/Alexx-Powered/layer-time-smoother/releases/tag/v0.2.2) · [安装与使用](#安装与使用) · [下载离线交互曲线](https://github.com/Alexx-Powered/layer-time-smoother/releases/download/v0.2.2/layer-time-explorer.html)**
 
 ## OrcaSlicer 2.5.1 实际导出
 
-在 Windows 版 OrcaSlicer 中安装 GitHub 发布的 **0.2.0** 插件，用同一个讲解石模型分别导出原始、46 档和 90 档 G-code。本次使用 Bambu Lab A1、0.4 mm 喷嘴、Bambu PLA Basic 和 0.20 mm Standard 工艺，共 208 层。下表按导出的运动指令重新估时。整盘以 Orca 文件头的 55 分 35 秒为基准，叠加各层调速带来的时间差。A1 的条件延时摄影、喷头检测按未触发估算。
+原始讲解石 G-code 来自 Windows 版 OrcaSlicer 2.5.1。下表用 0.2.2 插件共用的后处理入口重新生成 46 档和 90 档，并复算导出结果。本次使用 Bambu Lab A1、0.4 mm 喷嘴、Bambu PLA Basic 和 0.20 mm Standard 工艺，共 208 层。下表按导出的运动指令重新估时。整盘以 Orca 文件头的 55 分 35 秒为基准，叠加各层调速带来的时间差。A1 的条件延时摄影、喷头检测按未触发估算。
 
 | 导出工艺 | 预计整盘用时 | 相对原盘 | 第 81 层 | 相邻层时间差 RMS |
 |---|---:|---:|---:|---:|
-| 原始 | 55 分 35 秒 | — | 9.20 秒 | 1.569 秒 |
-| 平滑 46 | 57 分 25 秒 | +3.28% | 9.93 秒 | 0.958 秒 |
-| 平滑 90 | 1 小时 5 分 45 秒 | +18.29% | 11.82 秒 | 0.891 秒 |
+| 原始 | 55 分 35 秒 | — | 9.20 秒 | 1.381 秒 |
+| 平滑 46 | 57 分 26 秒 | +3.32% | 9.93 秒 | 0.614 秒 |
+| 平滑 90 | 1 小时 3 分 59 秒 | +15.13% | 11.82 秒 | 0.485 秒 |
 
-两档各有 205 层发生调速。逐条对齐三份 G-code，两种处理都只改变了 9,958 条稀疏填充和 24,878 条内部实心填充运动的进给，最高为原值的 150%。两档之间有 198 层的估时差超过 0.01 秒。下图用浅黄色标出第 64–98 层，并在下半图展开。看第 81 层的三个圆点，系数越高，这个低谷被抬得越高。[208 层原始数据](examples/orca-stone-46-90.csv)
+两档各有 205 层发生调速。逐条对齐三份 G-code，两种处理都只改变了 9,958 条稀疏填充和 24,878 条内部实心填充运动的进给，最高为原值的 150%。两档之间有 197 层的估时差超过 0.01 秒。下图用浅黄色标出第 64–98 层，并在下半图展开。看第 81 层的三个圆点，系数越高，这个低谷被抬得越高。[208 层原始数据](examples/orca-stone-46-90.csv)
 
 [![讲解石 A1 第 81 层耗时，原始 9.20 秒、46 档 9.93 秒、90 档 11.82 秒](docs/orca-stone-46-90-time.svg)](docs/orca-stone-46-90-time.svg?raw=1)
 
-下面是实装插件在 90 档导出后显示的曲线。第 105 层从 9.98 秒变为 12.07 秒，和单独读取最终 G-code 的数值一致。点击截图可看完整插件窗口。Orca 普通预览面板中的总时间可能仍沿用原文件头。[查看 46 档插件截图](docs/screenshots/orca-plugin-46.jpg)
+0.2.2 把收尾动作计入整盘，逐层曲线和评分在模型打印结束处截止。讲解石第 207 层为 **5.94 秒**，第 208 层为 **1.21 秒**。旧图把约 16.41 秒的停车、Z 轴移动和等待并入末层，显示为 17.62 秒。[放大最后 13 层](docs/orca-stone-ending.svg)　下面用新版插件配置页加载本次 90 档数据，读数定位到第 208 层。[46 档配置页](docs/orca-model-only-46.png) · [历史 0.2.0 桌面实测截图](docs/screenshots/orca-plugin-90.png)
 
-[![Orca 2.5.1 插件实拍，系数 90、整盘增加 10 分 10 秒、第 105 层的导出重算读数](docs/orca-plugin-90-panel.png)](docs/screenshots/orca-plugin-90.png?raw=1)
+[![新版插件预览，第 208 层原始和 90 档均为 1.21 秒](docs/orca-model-only-90.png)](docs/orca-model-only-90.png?raw=1)
 
 ## 三个实际切片
 
 将原始和自动调速后的 G-code 分别导入 Bambu Studio 02.08.02.61，在「预览 → 颜色方案 → 层时间」中放大同一部位并截图。每组左边是原始，右边是自动调速，点击可看原尺寸。模型颜色沿用切片器各自的色标。要按秒比较，请看每组下方的曲线和色带，两份 G-code 共用秒轴和色标，每格代表一层。表中用时按导出指令估算，冷却纹的表面效果仍需实物对照。[带切片器图例的全盘截图](docs/screenshots) · [逐层数据及选参报告](examples)
 
-| 切片 | 层数 | 自动系数 | 层时间转折 RMS，前 → 后 | 整盘预计增时 |
-|---|---:|---:|---:|---:|
-| 讲解石 · P2S 单色 | 208 | 45 | 1.61 → 0.20 秒 | 2 分 53 秒（5.63%） |
-| H2D · 双喷头，430 次切换 | 1,187 | 55 | 14.96 → 0.74 秒 | 1 小时 15 分 21 秒（10.23%） |
-| 肥肥嘟 · P2S 单喷头，三色与异料支撑，89 次换料 | 327 | 40 | 44.01 → 5.91 秒 | 1 小时 22 分 40 秒（16.19%） |
+| 切片 | 层数 | 自动系数 | 层时间转折 RMS，前 → 后 | 整盘预计增时 | 模型末层 |
+|---|---:|---:|---:|---:|---:|
+| 讲解石 · P2S 单色 | 208 | 45 | 1.61 → 0.20 秒 | 2 分 53 秒（5.63%） | 1.36 秒 |
+| H2D · 双喷头，430 次切换 | 1,187 | 55 | 14.96 → 0.74 秒 | 1 小时 15 分 21 秒（10.23%） | 5.28 秒 |
+| 肥肥嘟 · P2S 单喷头，三色与异料支撑，89 次换料 | 327 | 40 | 44.01 → 5.91 秒 | 1 小时 22 分 40 秒（16.19%） | 5.98 秒 |
+
+这三份 Bambu Studio 文件都带有明确的收尾起点。用 0.2.2 从原盘重新选参并导出后，三份 G-code 的 SHA-256 均与上次一致，原有切片截图也适用于本次结果。上方的 Orca A1 文件使用另一种结束标记，本次修正改变了它的逐层曲线和导出结果。[五份导出的层数、用时与校验值](examples/boundary-rerun.csv)
 
 ### 讲解石 · 单色
 
@@ -60,7 +62,7 @@
 
 ### Bambu Studio · 自动选参
 
-1. 安装 **Python 3.10 或更新版本**，下载 `layer_smoothing.pyz` 到固定目录。运行只使用 Python 标准库。[下载脚本](https://github.com/Alexx-Powered/layer-time-smoother/releases/download/v0.2.0/layer_smoothing.pyz)
+1. 安装 **Python 3.10 或更新版本**，下载 `layer_smoothing.pyz` 到固定目录。运行只使用 Python 标准库。[下载脚本](https://github.com/Alexx-Powered/layer-time-smoother/releases/download/v0.2.2/layer_smoothing.pyz)
 2. 在终端运行 `python -c "import sys; print(sys.executable)"` 找到解释器。macOS / Linux 通常使用 `python3`。
 3. 在 Bambu Studio 高级模式的「工艺 → 其他 → 后处理脚本」粘贴下面一行，把两处路径换成本机绝对路径，保留双引号。切片器会自动追加临时 G-code 文件名。
 
@@ -72,7 +74,7 @@
 
 ### OrcaSlicer · 手动滑块
 
-1. 下载 wheel。在 Windows 版 **OrcaSlicer 2.5.1** 左上角，打开「文件」右侧的菜单图标 →「插件」。点右上「安装插件」左侧的小箭头，选择本地安装，选取 `.whl` 并激活。升级时停用旧版本。[下载实测版 0.2.0](https://github.com/Alexx-Powered/layer-time-smoother/releases/download/v0.2.0/orca_layer_smoothing-0.2.0-py3-none-any.whl)
+1. 下载 wheel。在 Windows 版 **OrcaSlicer 2.5.1** 左上角，打开「文件」右侧的菜单图标 →「插件」。点右上「安装插件」左侧的小箭头，选择本地安装，选取 `.whl` 并激活。升级时停用旧版本。[下载 0.2.2](https://github.com/Alexx-Powered/layer-time-smoother/releases/download/v0.2.2/orca_layer_smoothing-0.2.2-py3-none-any.whl)
 2. 切到工艺的高级视图，打开「其他 → 切片流水线插件 → 添加插件」，选 **Layer Time Smoothing** 并确认。在下方「插件配置 → Configure…」打开层时间曲线。
 3. 拖滑块或输入系数（0–100，步长 0.5，默认 65），点「保存」，关闭配置窗口，重新切片并导出。系数 0 让可调填充尽量提到原进给的 150%。系数越高，插件通常会把长短层之间的过渡摊到更多邻层。
 4. 首次打开会显示有标记的内置讲解石示例。处理本盘后重新打开配置页，即可看最近一次处理的数据、预计整盘用时和相对变化。0.2.0 的全盘曲线从第 2 层开始，首层保持原速。选择上次使用的系数时显示「导出重算」，拖到其他系数时显示「调速预估」。点击曲线放大附近 31 层，悬停读单层秒数，也可以输入层号定位。

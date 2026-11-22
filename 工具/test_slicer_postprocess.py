@@ -18,6 +18,17 @@ def sample():
 
 
 class SlicerPostprocessTest(unittest.TestCase):
+    def test_footer_is_plate_only(self):
+        source = sample().split(b"\n",1)[1]
+        times = [r.total() for r in estimate(source)[1]]
+        for marker in (b"; MACHINE_END_GCODE_START", b"; FEATURE: Custom\n; filament end gcode "):
+            job = source + marker + b"\nG4 S17\n; EXECUTABLE_BLOCK_END\n"
+            self.assertEqual([r.total() for r in estimate(job)[1]], times)
+            self.assertAlmostEqual(original_total(job,times)[0], sum(times)+17)
+            self.assertEqual(original_total(sample()+job,times)[0],63)
+        mid = source.replace(b";LAYER_CHANGE", b"; FEATURE: Custom\n; filament end gcode\n;LAYER_CHANGE")
+        self.assertEqual([r.total() for r in estimate(mid)[1]],times)
+
     def test_a1_optional_recording_and_unknown_conditions(self):
         prefix = b"; printer_model = Bambu Lab A1\n"
         block = (b"M624 AQAAAAAAAAA=\n; SKIPPABLE_START\n; SKIPTYPE: timelapse\n"

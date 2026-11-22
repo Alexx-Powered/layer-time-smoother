@@ -9,7 +9,7 @@ from .slicer_postprocess import atomic_write, run_job
 
 
 def preview_path():
-    return Path(orca.host.plugin.storage()) / "last-export.json"
+    return Path(orca.host.plugin.storage()) / "last-export-model-layers.json"
 
 
 class LayerTime(orca.slicing.SlicingPipelineCapabilityBase):

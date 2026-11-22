@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "orca-layer-smoothing"
-version = "0.2.1"
+version = "0.2.2"
 description = "Smooth layer times using model infill speed"
 requires-python = ">=3.10"
 

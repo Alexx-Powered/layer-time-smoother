@@ -13,6 +13,14 @@ def original_total(data, baseline):
     total = header_total_seconds(data)
     if total is not None:
         return total, "gcode_header"
+    if b"MACHINE_END_GCODE_START" in data or b"; filament end gcode" in data:
+        if __package__:
+            from .gcode_feature_times import estimate
+        else:
+            from gcode_feature_times import estimate
+        _, whole, _ = estimate(data, include_ending=True)
+        _, model, _ = estimate(data)
+        return math.fsum(baseline) + whole[-1].total() - model[-1].total(), "layer_sum_with_ending"
     return math.fsum(baseline), "layer_sum"
 
 

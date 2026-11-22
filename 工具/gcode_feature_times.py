@@ -116,9 +116,29 @@ def geometry(old, new, cmd, w):
             tangent(-cx, -cy), tangent(dx - cx, dy - cy), arc, radius)
 
 
-def estimate(data, *, motion_feed=None, change_events=None):
+def ending_line(lines):
+    """Only recognize a filament footer in the terminal custom feature."""
+    for i in range(len(lines)-1, -1, -1):
+        tag = lines[i].strip()
+        if tag == "; MACHINE_END_GCODE_START":
+            return i
+        if tag == "; filament end gcode":
+            j = i - 1
+            while j >= 0 and not lines[j].strip():
+                j -= 1
+            if j >= 0 and lines[j].strip() in {"; FEATURE: Custom", "; TYPE:Custom"}:
+                return i
+        comment = tag.removeprefix(";").strip()
+        if tag.startswith(";") and (ROLE.fullmatch(comment) or LAYER.fullmatch(comment) or comment.startswith("printing object")):
+            break
+    return len(lines)
+
+
+def estimate(data, *, motion_feed=None, change_events=None, include_ending=False):
     """Optionally inspect or replace the nominal mm/s of each modeled movement."""
     lines = data.decode("utf-8-sig").splitlines()
+    if not include_ending:
+        del lines[ending_line(lines):]
     # Use the normal-mode (first) value in slicer profile comments.
     limits = {kind: {} for kind in ("speed", "jerk", "acceleration")}
     profile = {}
@@ -222,7 +242,7 @@ def estimate(data, *, motion_feed=None, change_events=None):
                 heights.append(None)
                 totals.append(Counter())
                 notes.append(set())
-            elif comment in {"MACHINE_END_GCODE_START", "EXECUTABLE_BLOCK_END"}:
+            elif comment == "EXECUTABLE_BLOCK_END" or (comment == "MACHINE_END_GCODE_START" and not include_ending):
                 break
             elif layer >= 0 and (m := Z_HEIGHT.fullmatch(comment)):
                 heights[layer] = float(m[1])
