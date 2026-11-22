@@ -6,7 +6,7 @@ import os
 from pathlib import Path
 import re
 import stat
-import tempfile
+from uuid import uuid4
 import zipfile
 
 if __package__:
@@ -18,15 +18,18 @@ else:
 
 
 def atomic_write(path, data):
-    fd, temporary = tempfile.mkstemp(prefix=".layer-smooth-",dir=path.parent)
+    # Orca authorizes the path of this job. Reopening a numeric file descriptor
+    # loses that path for its Python audit hook.
+    temporary = path.with_name(".layer-smooth-" + uuid4().hex)
+    stream = temporary.open("xb")
     try:
-        with os.fdopen(fd,"wb") as f:
-            f.write(data)
+        with stream:
+            stream.write(data)
         if path.exists():
             os.chmod(temporary, stat.S_IMODE(path.stat().st_mode))
         os.replace(temporary,path)
     finally:
-        Path(temporary).unlink(missing_ok=True)
+        temporary.unlink(missing_ok=True)
 
 
 def run_job(path, strength=None, *, destination=None, audit=None, on_preview=None):

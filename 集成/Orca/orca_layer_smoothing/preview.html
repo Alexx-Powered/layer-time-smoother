@@ -25,7 +25,7 @@ button.primary{background:#007c70;color:white;border-color:#007c70} button[aria-
 const data=JSON.parse(document.getElementById('source-data').textContent), n=data.before.length;
 const el=id=>document.getElementById(id), ns='http://www.w3.org/2000/svg', plot=el('chart');
 const sum=a=>a.reduce((v,t)=>v+t,0);
-let values=[], index=Math.min(n-1,Math.max(1,Math.floor(n/2))), zoom=false, low=0, high=n-1, frame=0;
+let values=[], index=Math.min(n-1,Math.max(1,Math.floor(n/2))), center=index, zoom=false, low=0, high=n-1, frame=0;
 const originalTotal=data.total, baselineSum=sum(data.before);
 el('source').textContent=(data.exported?'最近一次插件导出 · ':'内置示例 · ')+data.name+' · '+n+' 层';
 el('layer').max=n;
@@ -38,7 +38,7 @@ function readout(){
 function draw(){
   if(!values.length)return;
   const w=Math.max(220,plot.clientWidth),h=185,left=42,right=w-13,top=12,bottom=h-28;
-  low=zoom?Math.max(0,Math.min(n-31,index-15)):Math.min(1,n-1);high=zoom?Math.min(n-1,low+30):n-1;
+  low=zoom?Math.max(0,Math.min(n-31,center-15)):0;high=zoom?Math.min(n-1,low+30):n-1;
   let min=Infinity,max=0;
   for(let i=low;i<=high;i++){min=Math.min(min,data.before[i],values[i]);max=Math.max(max,data.before[i],values[i])}
   const pad=Math.max(.2,(max-min)*.09);min=Math.max(0,min-pad);max+=pad;
@@ -66,9 +66,10 @@ el('s').oninput=()=>{el('status').textContent='';setStrength(el('s').valueAsNumb
 el('num').onchange=()=>{el('status').textContent='';setStrength(el('num').valueAsNumber)};
 el('save').onclick=()=>{window.orca.saveConfig({smoothness:el('s').valueAsNumber});el('status').textContent='已提交'};
 window.orca.onConfig(cfg=>{setStrength(Number(cfg?.smoothness??65));el('save').disabled=!!window.orca.getContext()?.readOnly});
-el('all').onclick=()=>{zoom=false;draw()};el('detail').onclick=()=>{zoom=true;draw()};
-el('layer').onchange=()=>{if(Number.isFinite(el('layer').valueAsNumber)){index=Math.max(0,Math.min(n-1,Math.round(el('layer').valueAsNumber)-1));zoom=true;draw()}};
-plot.onpointermove=e=>{if(zoom)return;const rect=plot.getBoundingClientRect(),t=(e.clientX-rect.left-42)/(rect.width-55);index=Math.max(low,Math.min(high,Math.round(low+t*(high-low))));draw()};
-plot.onclick=e=>{if(!zoom){zoom=true;draw()}};
+function focusLayers(){center=index;zoom=true;draw()}
+el('all').onclick=()=>{zoom=false;draw()};el('detail').onclick=focusLayers;
+el('layer').onchange=()=>{if(Number.isFinite(el('layer').valueAsNumber)){index=Math.max(0,Math.min(n-1,Math.round(el('layer').valueAsNumber)-1));focusLayers()}};
+plot.onpointermove=e=>{const rect=plot.getBoundingClientRect(),t=(e.clientX-rect.left-42)/(rect.width-55);index=Math.max(low,Math.min(high,Math.round(low+t*(high-low))));draw()};
+plot.onclick=focusLayers;
 new ResizeObserver(draw).observe(plot);
 </script></body></html>
