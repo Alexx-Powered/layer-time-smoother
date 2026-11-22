@@ -1,0 +1,286 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>层时间调节台</title>
+<style>
+:root{color-scheme:light;--paper:#f5f6f3;--card:#fff;--ink:#172c29;--muted:#526660;--line:#dce3dd;--teal:#007c66;--mint:#e4f4ed;--original:#697794;--warm:#8a4727;--number:"Inter","Segoe UI","Microsoft YaHei",sans-serif;font-family:"Inter","Segoe UI","Microsoft YaHei",sans-serif;color:var(--ink);background:var(--paper);font-variant-numeric:tabular-nums}
+*{box-sizing:border-box}
+body{margin:0}main{max-width:1390px;margin:auto;padding:clamp(17px,3.3vw,50px)}
+h1,h2,p{margin:0}h1{font-size:clamp(27px,3vw,42px);line-height:1.15;letter-spacing:-.04em}h2{font-size:clamp(19px,2vw,24px);letter-spacing:-.035em}
+header,.heading,.control-row,.legend,.inspect,.settings,.sample,.reset-row{display:flex;align-items:center;gap:16px}
+header{justify-content:space-between;align-items:flex-start;margin-bottom:26px}.title-block{border-left:5px solid var(--teal);padding-left:16px}.meta,.hint,footer,.unit{color:var(--muted);font-size:13px;line-height:1.65}.meta{margin-top:7px;overflow-wrap:anywhere}
+label,.kicker{color:var(--muted);font-size:14px;font-weight:550}
+input,button,select{font:inherit;color:var(--ink);accent-color:var(--teal)}
+select,input[type=number],button{border:1px solid #b9c8c0;background:var(--card);border-radius:7px;min-height:42px;padding:7px 12px}
+button,select,input[type=range],input[type=checkbox]{cursor:pointer}button:disabled{opacity:.45;cursor:default}button:hover:enabled,select:hover{border-color:var(--teal)}
+:focus-visible{outline:3px solid #007c66;outline-offset:3px}input[type=number]{width:79px;text-align:center;font-weight:650}
+.sample{gap:9px;flex-wrap:wrap}.sample select{min-width:160px;font-weight:600}
+.summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));border:1px solid var(--line);border-radius:14px;background:var(--card);overflow:hidden}
+.summary .primary[data-change="longer"]{background:#f7eee3}.summary .primary[data-change="longer"] b,.summary .primary[data-change="longer"] strong{color:var(--warm)}
+.metric{padding:clamp(13px,2vw,25px)}.metric+.metric{border-left:1px solid var(--line)}.metric.primary{background:#e6f3eb}.metric dt{font-size:14px;font-weight:600;color:var(--muted)}.metric dd{margin:7px 0 0;display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}.metric b{font:650 clamp(23px,3.1vw,39px)/1.12 var(--number);letter-spacing:-.04em}.metric strong{font-size:17px;color:var(--teal);white-space:nowrap}.metric.primary b{color:#194e41}
+.settings{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 20px;gap:20px;margin:15px 0}.settings label{color:var(--ink);font-weight:650}.settings input[type=range]{min-width:80px;max-width:450px;flex:1;height:30px}.settings .hint{margin-left:auto}
+.plots{display:grid;grid-template-columns:minmax(0,1.65fr) minmax(0,1fr);gap:15px;align-items:stretch}
+.panel{min-width:0;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:clamp(14px,1.6vw,24px);display:flex;flex-direction:column}
+.heading{justify-content:space-between;min-height:44px;flex-wrap:wrap;gap:6px 12px}.heading select{padding:5px 8px}.heading .hint{white-space:nowrap}
+.legend{gap:18px;flex-wrap:wrap;font-size:13px;color:var(--muted);margin:9px 0;min-height:22px}
+.legend span{display:inline-flex;align-items:center;gap:7px}.swatch{width:23px;border-top:3px solid var(--teal)}.swatch.original{border-top:2px dashed var(--original)}
+.plot{display:block;width:100%;height:clamp(225px,29vh,320px);overflow:visible;user-select:none}
+#overview{cursor:crosshair;touch-action:pan-y}.plot text{font:12px var(--number);fill:var(--muted)}.plot .grid{stroke:#e0e6e1;stroke-width:1}.plot .baseline{stroke:#a9b8b1;stroke-width:1}.plot .series{fill:none;stroke-linejoin:round;stroke-linecap:round}.plot .before{stroke:var(--original);stroke-width:1.7;stroke-dasharray:5 4}.plot .after{stroke:var(--teal);stroke-width:2.6}.plot .focus-line{stroke:var(--teal);stroke-dasharray:3 4;opacity:.8}.plot .selection{fill:var(--teal);opacity:.09}
+.inspect,.reset-row{margin-top:auto;padding-top:14px;border-top:1px solid var(--line);gap:8px 14px;flex-wrap:wrap;min-height:60px}.reset-row{justify-content:space-between}.reset-row label{display:inline-flex;align-items:center;gap:7px;cursor:pointer}.reset-row input{width:17px;height:17px}.reset-row button{font-size:13px;min-height:36px}.inspect{justify-content:space-between}.inspect label{display:inline-flex;align-items:center;gap:8px}.inspect input{width:74px}.readout{display:flex;flex-wrap:wrap;gap:8px 14px;font-size:13px;color:var(--muted);margin:7px 0 10px;min-height:23px}.readout strong{font-weight:650;color:var(--ink)}.readout .preview{color:var(--teal)}
+footer{margin:15px 2px 0}dl{margin:0}noscript{display:block;padding:14px}.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
+@media(max-width:900px){.plots{grid-template-columns:minmax(0,1.35fr) minmax(0,1fr)}.settings .hint{max-width:250px}.panel{padding:14px}.legend{gap:12px}}
+@media(max-width:720px){header{align-items:flex-start;gap:10px}.sample{display:grid;gap:4px}.sample select{min-width:90px}.settings{flex-wrap:wrap;gap:6px 12px}.settings .hint{margin:0;max-width:none;flex-basis:100%}.plots{grid-template-columns:minmax(0,1fr)}.metric dd{gap:3px 8px}.metric strong{font-size:14px}.plot{height:220px}.settings input[type=range]{max-width:none}.inspect,.reset-row{min-height:44px;padding-top:8px}.metric{padding:12px}.summary{border-radius:11px}.metric dt{font-size:12px}.metric b{font-size:clamp(15px,3.5vw,24px)}}
+@media(max-width:420px){.metric{padding:10px 7px}.meta{max-width:205px}.settings{padding:10px}.title-block{padding-left:10px}.sample label{font-size:12px}.settings input[type=number]{width:65px}.settings .hint{font-size:12px}}
+@media(pointer:coarse){select,input[type=number],button,.reset-row button{min-height:44px}.reset-row label,.settings input[type=range]{min-height:44px}}
+</style>
+</head>
+<body><main>
+<header><div class="title-block"><h1>层时间调节台</h1><p class="meta" id="fileMeta"></p></div>
+<div class="sample"><label for="case">切片样本</label><select id="case"></select></div></header>
+<dl class="summary" aria-label="整盘估时">
+  <div class="metric"><dt>原始 G-code</dt><dd><b id="beforeTotal">—</b></dd></div>
+  <div class="metric"><dt>调速后预计</dt><dd><b id="afterTotal">—</b></dd></div>
+  <div class="metric primary" id="deltaMetric"><dt>相对原盘变化</dt><dd><b id="deltaTime">—</b><strong id="deltaPct"></strong></dd></div>
+</dl>
+<section class="settings" aria-label="平滑参数">
+  <label for="strength">平滑系数</label><input type="range" id="strength" min="0" max="100" step=".5" value="65">
+  <input type="number" id="strengthNumber" aria-label="输入平滑系数" min="0" max="100" step=".5" value="65">
+  <span class="hint">系数为 0 时可调填充跑原速的 150%，系数越高，转折越缓。</span>
+</section>
+<div class="plots">
+<section class="panel" aria-labelledby="overviewTitle">
+  <div class="heading"><h2 id="overviewTitle">逐层时间</h2><span id="extent" class="hint"></span></div>
+  <div class="legend"><span><i class="swatch original"></i>原始 G-code</span><span><i class="swatch"></i>平滑预览</span></div>
+  <svg class="plot" id="overview" role="img" aria-label="原始与调速后的逐层时间曲线"></svg>
+  <p class="hint">悬停或轻点查看局部，横向拖拽放大区间。</p>
+  <div class="reset-row"><label><input type="checkbox" id="showFirst">显示首层</label><button type="button" id="reset" disabled>恢复全图</button></div>
+</section>
+<section class="panel" aria-labelledby="detailTitle">
+  <div class="heading"><h2 id="detailTitle">局部放大</h2><div class="control-row"><label for="window">窗口</label><select id="window"><option value="11">11 层</option><option value="31" selected>31 层</option><option value="61">61 层</option><option value="121">121 层</option></select></div></div>
+  <div class="readout"><span>原始 <strong id="beforeLayer"></strong></span><span>预览 <strong class="preview" id="afterLayer"></strong></span><strong id="deltaLayer"></strong></div>
+  <svg class="plot" id="detail" role="img" aria-label="选中层附近的时间曲线"></svg>
+  <div class="inspect"><label for="layer">选中层<input type="number" id="layer" min="1" step="1"></label><span id="height" class="hint"></span></div>
+</section>
+</div>
+<footer>原盘用时取自切片文件头，包含准备时间。调速后整盘估时等于原盘用时加逐层时间差之和。整盘统计始终包含首层。</footer>
+<div class="sr-only" aria-live="polite" id="announcement"></div>
+<noscript>请启用 JavaScript 以调节曲线。</noscript>
+</main>
+<script id="layer-data" type="application/json">__EMBEDDED_LAYER_DATA__</script>
+<script>
+"use strict";
+const el = id => document.getElementById(id);
+const source = JSON.parse(el("layer-data").textContent);
+const overview = el("overview"), detail = el("detail");
+const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
+const time = seconds => {
+  const n = Math.round(Math.abs(seconds));
+  return [Math.floor(n/3600), Math.floor(n/60)%60, n%60].map(v=>String(v).padStart(2,"0")).join(":");
+};
+const sign = n => n > 0 ? "+" : n < 0 ? "−" : "";
+const svgNS = "http://www.w3.org/2000/svg";
+let sample, current, strength = source.default, first = false, lo, hi, selected;
+let mainPlot, marker, drag = null, scheduled = false, dirtyMain = true;
+
+function svgNode(parent, tag, attrs, content) {
+  const node = document.createElementNS(svgNS, tag);
+  for (const [key,value] of Object.entries(attrs)) node.setAttribute(key, value);
+  if (content !== undefined) node.textContent = content;
+  parent.append(node);
+  return node;
+}
+
+function useSample(index) {
+  sample = source.cases[index];
+  if (!sample.values) {
+    const bytes = Uint8Array.from(atob(sample.profiles), c=>c.charCodeAt(0));
+    const view = new DataView(bytes.buffer);
+    sample.values = Float32Array.from({length:bytes.length/4}, (_,i)=>view.getFloat32(i*4,true));
+    sample.profiles = "";
+  }
+  el("case").value = String(index);
+  el("fileMeta").textContent = sample.description + "　/　" + sample.original.length + " 层　/　" + sample.file;
+  lo = first ? 0 : 1;
+  hi = sample.original.length-1;
+  selected = clamp([49,454,264][index],lo,hi);
+  drag = null;
+  setStrength(strength);
+}
+
+function setStrength(number, keepEntry=false) {
+  strength = Math.round(clamp(number,0,100)*source.steps)/source.steps;
+  el("strength").value = String(strength);
+  if (!keepEntry) el("strengthNumber").value=String(strength);
+  const count = sample.original.length, offset = Math.round(strength*source.steps)*count;
+  current = sample.values.subarray(offset,offset+count);
+  const delta = current.reduce((a,b)=>a+b,0) - sample.originalSum;
+  el("deltaMetric").dataset.change=delta>0?"longer":"shorter";
+  el("beforeTotal").textContent = time(sample.total);
+  el("afterTotal").textContent = time(sample.total+delta);
+  el("deltaTime").textContent = (Math.round(Math.abs(delta)) ? sign(delta) : "") + time(delta);
+  const pct = 100*delta/sample.total;
+  el("deltaPct").textContent = sign(Number(pct.toFixed(2))) + Math.abs(pct).toFixed(2) + "%";
+  refresh(true);
+}
+
+function tickStep(span, count, integer) {
+  const rough = Math.max(span/count,integer ? 1 : .00001);
+  const power = 10**Math.floor(Math.log10(rough));
+  const scale = [1,2,2.5,5,10].find(n=>n*power >= rough && (!integer || Number.isInteger(n*power)));
+  return (scale || 10)*power;
+}
+
+function plot(svg, left, right) {
+  const rect = svg.getBoundingClientRect();
+  const width = Math.max(100,rect.width), height = Math.max(100,rect.height);
+  const x0 = 42, x1 = width-18, y0 = 27, y1 = height-40;
+  let min = Infinity, max = -Infinity;
+  for (let i=left;i<=right;i++) {
+    min = Math.min(min,sample.original[i],current[i]);
+    max = Math.max(max,sample.original[i],current[i]);
+  }
+  const pad = Math.max(.3,(max-min)*.09), bottom = Math.max(0,min-pad), top = max+pad;
+  const yStep = tickStep(top-bottom,5,false);
+  const yMin = Math.floor(bottom/yStep)*yStep, yMax = Math.ceil(top/yStep)*yStep;
+  const x = i => x0 + (right===left ? .5 : (i-left)/(right-left))*(x1-x0);
+  const y = t => y1 - (t-yMin)/(yMax-yMin)*(y1-y0);
+  svg.replaceChildren();
+  svg.setAttribute("viewBox","0 0 "+width+" "+height);
+  const add = (tag,attrs,content)=>svgNode(svg,tag,attrs,content);
+  add("title",{}, "第 "+(left+1)+" 至 "+(right+1)+" 层，原始与平滑预览用时");
+  add("text",{x:4,y:15},"秒");
+  for (let j=0; j<=Math.round((yMax-yMin)/yStep); j++) {
+    const v=yMin+j*yStep, pos=y(v);
+    add("line",{x1:x0,x2:x1,y1:pos,y2:pos,class:"grid"});
+    add("text",{x:x0-7,y:pos+4,"text-anchor":"end"},String(Number(v.toFixed(3))));
+  }
+  add("line",{x1:x0,x2:x1,y1:y1,y2:y1,class:"baseline"});
+  const step = tickStep(right-left,Math.max(2,Math.floor((x1-x0)/62)),true);
+  for (let label=Math.ceil((left+1)/step)*step;label<=right+1;label+=step) {
+    add("text",{x:x(label-1),y:y1+17,"text-anchor":"middle"},label);
+  }
+  add("text",{x:(x0+x1)/2,y:height-3,"text-anchor":"middle"},"层号");
+  const band = add("rect",{x:0,y:y0,width:0,height:y1-y0,class:"selection"});
+  for (const [v,cls] of [[sample.original,"before"],[current,"after"]]) {
+    const coords=[];
+    for (let i=left;i<=right;i++) coords.push((i===left?"M":"L")+x(i).toFixed(2)+" "+y(v[i]).toFixed(2));
+    add("path",{d:coords.join(" "),class:"series "+cls});
+  }
+  return {x,y,x0,x1,y0,y1,left,right,band,svg};
+}
+
+function focusMarks(p) {
+  const group=svgNode(p.svg,"g",{"pointer-events":"none"});
+  const line=svgNode(group,"line",{y1:p.y0,y2:p.y1,class:"focus-line"});
+  const a=svgNode(group,"circle",{r:3.5,fill:"white",stroke:"var(--original)","stroke-width":2});
+  const b=svgNode(group,"circle",{r:3.3,fill:"var(--teal)",stroke:"white","stroke-width":1.1});
+  return i=>{
+    const x=p.x(i);
+    line.setAttribute("x1",x); line.setAttribute("x2",x);
+    a.setAttribute("cx",x); a.setAttribute("cy",p.y(sample.original[i]));
+    b.setAttribute("cx",x); b.setAttribute("cy",p.y(current[i]));
+  };
+}
+
+function refresh(mainChanged=false) {
+  dirtyMain ||= mainChanged;
+  if (!scheduled) {scheduled=true;requestAnimationFrame(render);}
+}
+
+function render() {
+  scheduled=false;
+  const n=sample.original.length;
+  if (dirtyMain) {
+    mainPlot=plot(overview,lo,hi);
+    marker=focusMarks(mainPlot);
+    el("extent").textContent="第 "+(lo+1)+"–"+(hi+1)+" 层";
+    el("reset").disabled=lo===(first?0:1) && hi===n-1;
+    dirtyMain=false;
+  }
+  const span=Math.min(Number(el("window").value),hi-lo+1);
+  const start=clamp(selected-Math.floor(span/2),lo,hi-span+1), end=start+span-1;
+  const a=drag && drag.moved ? Math.min(drag.start,drag.end) : start;
+  const b=drag && drag.moved ? Math.max(drag.start,drag.end) : end;
+  mainPlot.band.setAttribute("x",mainPlot.x(a));
+  mainPlot.band.setAttribute("width",Math.max(1,mainPlot.x(b)-mainPlot.x(a)));
+  marker(selected);
+  const local=plot(detail,start,end);
+  focusMarks(local)(selected);
+  el("layer").min=first?1:2;
+  el("layer").max=n;
+  if (document.activeElement!==el("layer")) el("layer").value=selected+1;
+  const aTime=sample.original[selected], bTime=current[selected], change=bTime-aTime;
+  el("beforeLayer").textContent=aTime.toFixed(2)+" s";
+  el("afterLayer").textContent=bTime.toFixed(2)+" s";
+  el("deltaLayer").textContent=sign(Number(change.toFixed(2)))+Math.abs(change).toFixed(2)+" s";
+  el("height").textContent="Z "+sample.z[selected].toFixed(2)+" mm · 第 "+(start+1)+"–"+(end+1)+" 层";
+}
+
+function pick(event, bounded=false) {
+  if (!mainPlot) return null;
+  const rect=overview.getBoundingClientRect(), x=event.clientX-rect.left, y=event.clientY-rect.top;
+  if (!bounded && (x<mainPlot.x0 || x>mainPlot.x1 || y<mainPlot.y0 || y>mainPlot.y1)) return null;
+  return clamp(Math.round(lo+(x-mainPlot.x0)/(mainPlot.x1-mainPlot.x0)*(hi-lo)),lo,hi);
+}
+function resetView() {
+  lo=first?0:1;hi=sample.original.length-1;
+  selected=clamp(selected,lo,hi);drag=null;
+  refresh(true);
+}
+function enterLayer() {
+  const field=el("layer");
+  if (!Number.isFinite(field.valueAsNumber)) {field.value=selected+1;return;}
+  selected=clamp(Math.round(field.valueAsNumber)-1,first?0:1,sample.original.length-1);
+  field.value=selected+1;
+  if (selected<lo || selected>hi) resetView(); else refresh();
+}
+overview.addEventListener("pointerdown",e=>{
+  if (e.button!==0) return;
+  const i=pick(e);
+  if (i===null) return;
+  drag={id:e.pointerId,start:i,end:i,x:e.clientX,moved:false};
+  selected=i;el("layer").value=i+1;overview.setPointerCapture(e.pointerId);refresh();
+});
+overview.addEventListener("pointermove",e=>{
+  if (drag && drag.id!==e.pointerId) return;
+  const i=pick(e,!!drag);
+  if (i===null) return;
+  if (drag) {
+    drag.end=i;drag.moved ||= Math.abs(e.clientX-drag.x)>5;
+  }
+  if (i!==selected || drag) {selected=i;el("layer").value=i+1;refresh();}
+});
+overview.addEventListener("pointerup",e=>{
+  if (!drag || drag.id!==e.pointerId) return;
+  const last=pick(e,true), a=Math.min(drag.start,last), b=Math.max(drag.start,last);
+  const zoom=drag.moved && b>a;
+  drag=null;
+  if (zoom) {lo=a;hi=b;selected=Math.round((a+b)/2);} else {selected=last;}
+  refresh(zoom);
+});
+overview.addEventListener("pointercancel",()=>{drag=null;refresh();});
+overview.addEventListener("dblclick",resetView);
+el("reset").addEventListener("click",resetView);
+el("showFirst").addEventListener("change",e=>{first=e.target.checked;resetView();});
+el("window").addEventListener("change",()=>refresh());
+el("layer").addEventListener("change",enterLayer);
+el("layer").addEventListener("keydown",e=>{if(e.key==="Enter") enterLayer();});
+el("case").addEventListener("change",e=>useSample(Number(e.target.value)));
+el("strength").addEventListener("input",e=>setStrength(e.target.valueAsNumber));
+function announce(){el("announcement").textContent=sample.name+"，平滑系数 "+strength+"，相对原盘 "+el("deltaPct").textContent;}
+el("strength").addEventListener("change",announce);
+el("strengthNumber").addEventListener("input",e=>{
+  const n=e.target.valueAsNumber;
+  if (Number.isFinite(n) && e.target.validity.valid) setStrength(n,true);
+});
+el("strengthNumber").addEventListener("change",e=>{
+  setStrength(Number.isFinite(e.target.valueAsNumber)?e.target.valueAsNumber:strength);announce();
+});
+for (const [i,c] of source.cases.entries()) el("case").add(new Option(c.name,i));
+el("strength").step=el("strengthNumber").step=1/source.steps;
+new ResizeObserver(()=>refresh(true)).observe(overview);
+new ResizeObserver(()=>refresh(true)).observe(detail);
+useSample(0);
+</script></body></html>

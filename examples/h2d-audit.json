@@ -1,0 +1,236 @@
+{
+  "original": {
+    "total_s": 44174,
+    "total_source": "gcode_header",
+    "layer_sum_s": 43722.20402551119,
+    "jump_rms_s": 8.78093618583143,
+    "bend_rms_s": 14.960931022235343
+  },
+  "candidates": [
+    {
+      "strength": null,
+      "total_s": 44174.0,
+      "change_pct": 0.0,
+      "jump_rms_s": 8.78093618583143,
+      "bend_rms_s": 14.960931022235343,
+      "score": 1.0,
+      "eligible": true
+    },
+    {
+      "strength": 0,
+      "total_s": 43363.48523169532,
+      "change_pct": -1.834823127415859,
+      "jump_rms_s": 9.001803250374934,
+      "bend_rms_s": 15.424364650858552,
+      "score": 1.0097164067611473,
+      "eligible": false
+    },
+    {
+      "strength": 5,
+      "total_s": 43364.499594387686,
+      "change_pct": -1.8325268384396125,
+      "jump_rms_s": 8.993750579884466,
+      "bend_rms_s": 15.405834201406742,
+      "score": 1.0086615435563693,
+      "eligible": false
+    },
+    {
+      "strength": 10,
+      "total_s": 43380.05436683523,
+      "change_pct": -1.797314332332972,
+      "jump_rms_s": 8.870764656644191,
+      "bend_rms_s": 15.121619852582102,
+      "score": 0.9925121096161182,
+      "eligible": false
+    },
+    {
+      "strength": 15,
+      "total_s": 43453.16624229976,
+      "change_pct": -1.6318054912397302,
+      "jump_rms_s": 8.319516197918295,
+      "bend_rms_s": 13.823814338844565,
+      "score": 0.91940511024667,
+      "eligible": true
+    },
+    {
+      "strength": 20,
+      "total_s": 43662.78416728557,
+      "change_pct": -1.1572776581573505,
+      "jump_rms_s": 7.053207250124186,
+      "bend_rms_s": 10.698393199384366,
+      "score": 0.7475920490073675,
+      "eligible": true
+    },
+    {
+      "strength": 25,
+      "total_s": 44039.50091894524,
+      "change_pct": -0.3044756668057242,
+      "jump_rms_s": 5.6879036468413755,
+      "bend_rms_s": 6.954318630490932,
+      "score": 0.5532491888397135,
+      "eligible": true
+    },
+    {
+      "strength": 30,
+      "total_s": 44571.63156034076,
+      "change_pct": 0.9001484138650712,
+      "jump_rms_s": 4.768966803709078,
+      "bend_rms_s": 4.351654105008542,
+      "score": 0.42598771620861026,
+      "eligible": true
+    },
+    {
+      "strength": 35,
+      "total_s": 45259.075625874975,
+      "change_pct": 2.4563671523406874,
+      "jump_rms_s": 4.13592669480222,
+      "bend_rms_s": 2.809425525165343,
+      "score": 0.3539617618118788,
+      "eligible": true
+    },
+    {
+      "strength": 40,
+      "total_s": 46067.054574451875,
+      "change_pct": 4.285449754271461,
+      "jump_rms_s": 3.674505499374565,
+      "bend_rms_s": 1.9016352655474464,
+      "score": 0.3156398604603261,
+      "eligible": true
+    },
+    {
+      "strength": 45,
+      "total_s": 46969.78383145775,
+      "change_pct": 6.329025742422585,
+      "jump_rms_s": 3.2985328848706885,
+      "bend_rms_s": 1.3444363889838356,
+      "score": 0.29604536372512286,
+      "eligible": true
+    },
+    {
+      "strength": 50,
+      "total_s": 47856.380330271495,
+      "change_pct": 8.336080794746898,
+      "jump_rms_s": 2.9907132074136435,
+      "bend_rms_s": 0.9848397934584837,
+      "score": 0.2865703339193129,
+      "eligible": true
+    },
+    {
+      "strength": 55,
+      "total_s": 48694.94554965303,
+      "change_pct": 10.234403834049505,
+      "jump_rms_s": 2.736800513728969,
+      "bend_rms_s": 0.7431529828926178,
+      "score": 0.28301812029733875,
+      "eligible": true
+    },
+    {
+      "strength": 60,
+      "total_s": 49469.07021513654,
+      "change_pct": 11.986847953856431,
+      "jump_rms_s": 2.538086861961408,
+      "bend_rms_s": 0.5761984147497087,
+      "score": 0.2836478156914385,
+      "eligible": true
+    },
+    {
+      "strength": 65,
+      "total_s": 50359.46742851229,
+      "change_pct": 14.002506969059377,
+      "jump_rms_s": 2.35650526678302,
+      "bend_rms_s": 0.4567065867881717,
+      "score": 0.2894714084813162,
+      "eligible": true
+    },
+    {
+      "strength": 70,
+      "total_s": 51311.03980484126,
+      "change_pct": 16.156652793139088,
+      "jump_rms_s": 2.200915477040251,
+      "bend_rms_s": 0.36855147132336047,
+      "score": 0.29920716754258425,
+      "eligible": true
+    },
+    {
+      "strength": 75,
+      "total_s": 52213.93880849893,
+      "change_pct": 18.200613049528982,
+      "jump_rms_s": 2.0802726442427404,
+      "bend_rms_s": 0.3034752320416734,
+      "score": 0.31060230917020526,
+      "eligible": true
+    },
+    {
+      "strength": 80,
+      "total_s": 53041.179042176576,
+      "change_pct": 20.073298868512193,
+      "jump_rms_s": 1.998031684492576,
+      "bend_rms_s": 0.25888615771178775,
+      "score": 0.3231560569247838,
+      "eligible": true
+    },
+    {
+      "strength": 85,
+      "total_s": 53596.06292626944,
+      "change_pct": 21.329431172792688,
+      "jump_rms_s": 1.9671386591611444,
+      "bend_rms_s": 0.23132542073036483,
+      "score": 0.3330371933290548,
+      "eligible": true
+    },
+    {
+      "strength": 90,
+      "total_s": 53975.41231100801,
+      "change_pct": 22.188192853280235,
+      "jump_rms_s": 1.9601503171144325,
+      "bend_rms_s": 0.2154756251957028,
+      "score": 0.34069717700909485,
+      "eligible": true
+    },
+    {
+      "strength": 95,
+      "total_s": 54278.658740973304,
+      "change_pct": 22.874674561899088,
+      "jump_rms_s": 1.9607760941457242,
+      "bend_rms_s": 0.20703777990533237,
+      "score": 0.34731563080503836,
+      "eligible": true
+    },
+    {
+      "strength": 100,
+      "total_s": 54507.273886414274,
+      "change_pct": 23.39220782907202,
+      "jump_rms_s": 1.9646750327324367,
+      "bend_rms_s": 0.20259795917068465,
+      "score": 0.3525645945352474,
+      "eligible": true
+    }
+  ],
+  "planned": {
+    "strength": 55,
+    "total_s": 48694.94554965303,
+    "change_pct": 10.234403834049505,
+    "jump_rms_s": 2.736800513728969,
+    "bend_rms_s": 0.7431529828926178,
+    "score": 0.28301812029733875,
+    "eligible": true
+  },
+  "evaluated_export": {
+    "strength": 55,
+    "total_s": 48694.94587191621,
+    "change_pct": 10.234404563580854,
+    "jump_rms_s": 2.7368006351688594,
+    "bend_rms_s": 0.7431527591665019,
+    "score": 0.28301812703061435,
+    "eligible": true
+  },
+  "exported": {
+    "strength": 55,
+    "total_s": 48694.94587191621,
+    "change_pct": 10.234404563580854,
+    "jump_rms_s": 2.7368006351688594,
+    "bend_rms_s": 0.7431527591665019,
+    "score": 0.28301812703061435,
+    "eligible": true
+  }
+}
