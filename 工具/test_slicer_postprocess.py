@@ -4,6 +4,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from automatic_curve import original_total, rate_curve, roughness, select_curve
+from gcode_feature_times import estimate
 from slicer_postprocess import run_job
 
 
@@ -17,6 +18,18 @@ def sample():
 
 
 class SlicerPostprocessTest(unittest.TestCase):
+    def test_a1_optional_recording_and_unknown_conditions(self):
+        prefix = b"; printer_model = Bambu Lab A1\n"
+        block = (b"M624 AQAAAAAAAAA=\n; SKIPPABLE_START\n; SKIPTYPE: timelapse\n"
+                 b"M622 J1\nG1 X50 F1800\nM623\n; SKIPPABLE_END\nM625\n")
+        source = prefix + sample()
+        heights, original, _ = estimate(source)
+        _, modified, notes = estimate(source + block)
+        self.assertEqual(original, modified)
+        self.assertFalse(any(notes))
+        _, _, unknown = estimate(source + block + b"M622 J1\nG1 X50 F1800\nM623\n")
+        self.assertEqual(unknown[-1], {"conditional G1"})
+
     def test_fixed_flat_curve_keeps_original_and_skips_empty_boundaries(self):
         t = [900,10,10,10,0,40,40]
         _, report = select_curve(b"",t,t,[False]+[True]*6)
