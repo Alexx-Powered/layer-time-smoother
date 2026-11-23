@@ -15,8 +15,42 @@
 .rail .profileKey{margin:4px 0;font-size:11px}
 .exportWrap{position:relative;flex:none}.splitButton{display:flex}.splitButton button{background:var(--accent);color:#21180f;border-color:var(--accent);min-height:37px;font-weight:650}
 #smoothExport{border-radius:6px 0 0 6px}#exportMenuButton{border-radius:0 6px 6px 0;border-left:1px solid #835329;padding:5px 10px}
-.exportMenu{position:absolute;top:calc(100% + 3px);right:0;display:grid;min-width:195px;padding:5px;border:1px solid var(--line);border-radius:7px;background:#252321;box-shadow:0 4px 15px #0007;z-index:4}
-.exportMenu button{text-align:left;border:0;background:transparent;font-size:13px}.exportMenu button:hover{background:#3b332a}
+:root{--menu-bg:#252321;--menu-hover:#3b332a;--menu-selected:#443325;--menu-shadow:0 4px 15px #0007}
+.exportMenu{position:absolute;top:calc(100% + 3px);right:0;display:grid;min-width:195px;z-index:4;
+  padding:5px;border:1px solid var(--line);border-radius:7px;background:var(--menu-bg);box-shadow:var(--menu-shadow)}
+.exportMenu button{text-align:left;border:0;background:transparent;font-size:13px}
+.exportMenu button:is(:hover,:focus-visible){background:var(--menu-hover)}
+select{accent-color:var(--accent)}
+select option{background:var(--menu-bg);color:var(--ink)}
+select option:checked{background:var(--menu-selected);color:var(--amber)}
+@supports (appearance:base-select) and selector(::picker(select)){
+  select,select::picker(select){appearance:base-select}
+  select{align-items:center;gap:.6em}
+  #material{min-inline-size:8.5em}
+  #scope{min-inline-size:9.2em}
+  #speed{min-inline-size:10.5em}
+  #probeSide{min-inline-size:min(100%,8em)}
+  #scenario{min-inline-size:min(100%,13em)}
+  select::picker-icon{content:"";width:.48em;height:.48em;margin-inline:auto 2px;
+    border:solid var(--sub);border-width:0 1.5px 1.5px 0;rotate:45deg;align-self:center;flex:none}
+  select:open{border-color:var(--accent)}
+  select:open::picker-icon{rotate:225deg;border-color:var(--accent)}
+  select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+  select::picker(select){
+    box-sizing:border-box;inline-size:max-content;min-inline-size:anchor-size(width);max-inline-size:calc(100vw - 16px);
+    max-block-size:min(25rem,65dvh);overflow:auto;overscroll-behavior:contain;margin-block:3px;padding:5px;
+    border:1px solid var(--line);border-radius:7px;background:var(--menu-bg);color:var(--ink);
+    box-shadow:var(--menu-shadow);scrollbar-color:#716458 var(--menu-bg);
+  }
+  select option{display:flex;align-items:center;gap:12px;min-block-size:34px;padding:6px 10px;border-radius:4px;
+    font:400 13px/1.45 var(--sans);cursor:pointer}
+  select option:checked{font-weight:600}
+  select option::checkmark{content:"✓";order:1;margin-inline-start:auto;color:var(--accent)}
+  select option:is(:hover,:focus-visible){background:var(--menu-hover);color:var(--ink)}
+  select option:focus-visible{outline:1px solid var(--accent);outline-offset:-1px}
+  select option:disabled{color:var(--sub);opacity:.6;cursor:default}
+  @media(pointer:coarse){select option{min-block-size:44px}}
+}
 #timeCurve{display:block;width:100%;height:160px;overflow:visible}#timeCurve text{font:11px var(--mono);fill:var(--sub)}.smoothFoot{align-items:start;flex-wrap:wrap}
 #layerReadout{font-variant-numeric:tabular-nums}.sourceCredit{font-size:12px;margin:0 0 20px}
 @media(max-width:600px){
