@@ -1,7 +1,7 @@
 (() => {
   'use strict';
   const names = {bambu: 'Bambu Studio', orca: 'OrcaSlicer'};
-  const published = 'https://alexx-powered.github.io/layer-time-smoother/';
+  const published = 'https://alexxpowered.top/layer-time-smoother/';
   const base = location.protocol === 'file:' ? published : document.currentScript?.src || location.href;
   const helperURL = new URL('slicer-helper.py', base);
   let paired = '';

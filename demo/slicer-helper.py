@@ -16,7 +16,7 @@ from pathlib import Path
 from urllib.parse import unquote
 
 
-PAGES_ORIGIN = "https://alexx-powered.github.io"
+PUBLISHED_ORIGINS = {"https://alexxpowered.top", "https://alexx-powered.github.io"}
 LIMIT = 256 * 1024 * 1024
 APPS = {
     "bambu": ("bambu-studio", "BambuStudio", "Bambu Studio", "bambustudio"),
@@ -145,7 +145,7 @@ def main():
     parser.add_argument("--allow-file", action="store_true", help="also allow a locally opened HTML demo with the pairing code")
     parser.add_argument("--origin", help="add a local development origin, e.g. http://127.0.0.1:8000")
     args = parser.parse_args()
-    origins = {PAGES_ORIGIN}
+    origins = set(PUBLISHED_ORIGINS)
     if args.allow_file:
         origins.add("null")
     if args.origin:

@@ -2,7 +2,7 @@ name: Publish demo
 on:
   push:
     branches: [main]
-    paths: ['demo/**', '.github/workflows/demo-pages.yml', '工具/**', '集成/Bambu/layer_smoothing.pyz']
+    paths: ['demo/**', 'deploy/redirect.html', '.github/workflows/demo-pages.yml', '工具/**', '集成/Bambu/layer_smoothing.pyz']
   workflow_dispatch:
 permissions:
   contents: read
@@ -30,6 +30,14 @@ jobs:
           node --check demo/smooth-worker.js
           node --check demo/slicer-open.js
           test -s demo/index.html && test -s demo/runtime/pyodide.asm.wasm
+      - uses: actions/upload-artifact@v4
+        with:
+          name: layer-time-smoother-static
+          path: demo/
+          retention-days: 14
+      # Keep direct URLs to assets used by older offline clients working.
+      - name: Switch the GitHub Pages entry to the custom domain
+        run: cp deploy/redirect.html demo/index.html
       - uses: actions/upload-pages-artifact@v4
         with:
           path: demo
