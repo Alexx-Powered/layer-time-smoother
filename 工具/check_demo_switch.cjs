@@ -16,7 +16,7 @@ class Element {
   querySelector(){return this.children.find(n=>'data-layer' in n.attrs)}
   addEventListener(){}
 }
-function openPanel(content){
+function openPanel(content,draw=async()=>{}){
   const elements=new Map();
   function get(id){
     if(!elements.has(id))elements.set(id,new Element());
@@ -45,13 +45,16 @@ function openPanel(content){
   };
   vm.runInNewContext(script,context);
   const panel=window.createSmoothingPanel({clear:()=>shown.push('original'),cancelPreview(){},inspect(){},
-    apply:async (blob,result,isCurrent)=>{if(isCurrent())shown.push(result.strength??'auto')}});
+    apply:async (blob,result,isCurrent)=>{
+      if(isCurrent()){shown.push(result.strength??'auto');await draw(result.strength)}
+    }});
   function selectSource(identity){panel.setSource({identity,name:identity,file:async()=>new Blob([identity])})}
   function click(id){assert.equal(!!get(id).disabled,false,id+' must be enabled');get(id).onclick()}
   function choose(value){get('strength').valueAsNumber=value;get('strength').oninput()}
   const checked=()=>get('smoothSwitch').attrs['aria-checked'];
   selectSource(content);
-  return {get,click,choose,commit:()=>get('strength').onchange(),checked,selectSource};
+  const busy=()=>get('smoothSwitch').attrs['aria-busy']==='true';
+  return {get,click,choose,commit:()=>get('strength').onchange(),checked,busy,selectSource};
 }
 async function until(predicate){
   for(let i=0;i<200;i++){if(predicate())return;await delay(5)}
@@ -95,5 +98,21 @@ async function until(predicate){
   await until(()=>shown.at(-1)===90);
   assert(!shown.includes(40)&&!shown.includes(70));
   assert.equal(calls.calculate,5);
+  // Hold the first 3D frame even after the chart and exported bytes are ready.
+  const frames=new Map();
+  const busyPanel=openPanel('spinner',strength=>new Promise((resolve,reject)=>frames.set(strength,{resolve,reject})));
+  busyPanel.click('smoothSwitch');await until(()=>frames.has(null));
+  assert(busyPanel.busy());frames.get(null).resolve();await until(()=>!busyPanel.busy());
+  busyPanel.choose(20);assert(busyPanel.busy());busyPanel.commit();
+  await until(()=>frames.has(20));busyPanel.choose(30);busyPanel.commit();
+  frames.get(20).resolve();await until(()=>frames.has(30));assert(busyPanel.busy());
+  frames.get(30).resolve();await until(()=>!busyPanel.busy());
+  busyPanel.choose(35);busyPanel.commit();await until(()=>frames.has(35));
+  frames.get(35).reject(Error('draw failed'));await until(()=>!busyPanel.busy());
+  assert.equal(busyPanel.checked(),'false');
+  busyPanel.choose(50);busyPanel.commit();assert.equal(busyPanel.busy(),false);
+  busyPanel.click('smoothSwitch');assert(busyPanel.busy());
+  busyPanel.click('smoothSwitch');assert.equal(busyPanel.busy(),false);
+  busyPanel.click('smoothSwitch');busyPanel.selectSource('another plate');assert.equal(busyPanel.busy(),false);
   console.log('Live curve, release, superseded exports, cached switches and plate changes verified.');
 })().catch(error=>{console.error(error);process.exitCode=1});

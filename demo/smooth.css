@@ -27,6 +27,19 @@
 #calculateStrength{color:var(--accent);border-color:#856540}
 #smoothSwitch:not([role=switch]) i{display:none}
 #smoothSwitch:not([role=switch]){justify-content:center;border-color:#ab7946;color:#ffcc90}
+#smoothSwitch i::after{
+ content:"";position:absolute;inset:2px auto auto 2px;width:12px;height:12px;
+ pointer-events:none;opacity:0;transition:translate .22s ease;
+ background:center/contain no-repeat url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23fff4da' stroke-width='1.8' stroke-linecap='round'%3E%3Cpath d='M8 1.7v2.6' opacity='.22'/%3E%3Cpath d='M12.45 3.55l-1.84 1.84' opacity='.31'/%3E%3Cpath d='M14.3 8h-2.6' opacity='.41'/%3E%3Cpath d='M12.45 12.45l-1.84-1.84' opacity='.51'/%3E%3Cpath d='M8 14.3v-2.6' opacity='.62'/%3E%3Cpath d='M3.55 12.45l1.84-1.84' opacity='.74'/%3E%3Cpath d='M1.7 8h2.6' opacity='.87'/%3E%3Cpath d='M3.55 3.55l1.84 1.84'/%3E%3C/svg%3E");
+}
+#smoothSwitch[aria-checked=true] i::after{translate:11px 0}
+#smoothSwitch[aria-busy=true] i::before{box-shadow:0 0 0 2px #26201a}
+#smoothSwitch[aria-busy=true] i::after{opacity:1;animation:smoothWait .8s steps(8,end) infinite}
+@keyframes smoothWait{to{transform:rotate(1turn)}}
+@media(prefers-reduced-motion:reduce){
+ #smoothSwitch i::after{transition:none}
+ #smoothSwitch[aria-busy=true] i::after{animation:none}
+}
 .stageBottom,.pin{z-index:2}
 @media(prefers-reduced-motion:no-preference){
  .smoothPanel:not([hidden]){animation:openSmooth .24s ease-out}

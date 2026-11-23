@@ -5,7 +5,7 @@ window.createSmoothingPanel = function ({apply, clear, cancelPreview, inspect}) 
   const svg = el('timeCurve'), status = el('smoothStatus');
   let plate, enabled=false, selection=0, strength=null, current=null, chart=null, layer=0, timer;
   let output=null, applied=null, displayRevision=0, animation=0, painted=[], opacity=0;
-  let previewFrame=0, exactRevision=-1, retry=false;
+  let previewFrame=0, exactRevision=-1, calculatingRevision=-1, retry=false;
   const keyFor = strength => strength===null?'auto':String(strength);
   const reducedMotion=matchMedia('(prefers-reduced-motion: reduce)');
   function exportReady(available) {
@@ -22,6 +22,7 @@ window.createSmoothingPanel = function ({apply, clear, cancelPreview, inspect}) 
       (secs>=60 ? Math.floor(secs/60)+'分 ' : '')+secs%60+'秒';
   }
   function setStatus(text) {status.textContent = text}
+  function previewBusy(busy) {el('smoothSwitch').setAttribute('aria-busy',String(busy))}
   function selectLayer(height) {
     if (!chart?.heights.length) return;
     const heights = chart.heights;
@@ -237,6 +238,7 @@ window.createSmoothingPanel = function ({apply, clear, cancelPreview, inspect}) 
     current=entry;enabled=on;output=blob;controls();display(entry.result,changed);
     if(!on){applied=null;clear();setStatus('显示原始走线。平滑结果可复用。');return}
     if(applied!==entry){
+      applied=null;
       setStatus('层时间已按走线复核，正在更新 3D。');
       try{
         await apply(output,entry.result,()=>revision===selection&&transition===displayRevision&&enabled);
@@ -272,7 +274,8 @@ window.createSmoothingPanel = function ({apply, clear, cancelPreview, inspect}) 
   }
   async function calculate(){
     const owner=plate,value=strength,revision=selection;
-    if(!owner||!enabled)return;
+    if(!owner||!enabled||calculatingRevision===revision)return;
+    calculatingRevision=revision;previewBusy(true);
     const wanted=()=>owner===plate&&value===strength&&enabled;
     retry=false;controls();
     if(chart&&previewCurve)setStatus('调速预估 · 正在后台复核走线。');
@@ -282,13 +285,17 @@ window.createSmoothingPanel = function ({apply, clear, cancelPreview, inspect}) 
       remember(owner,value);await present(entry,true,revision);
     }catch(error){
       if(revision===selection){retry=true;setStatus('走线复核失败。'+error.message)}
-    }finally{if(owner===plate)controls()}
+    }finally{
+      if(calculatingRevision===revision)calculatingRevision=-1;
+      if(revision===selection)previewBusy(false);
+      if(owner===plate)controls();
+    }
   }
   function choose(value){
     if(value===strength)return;
     clearTimeout(timer);displayRevision++;strength=value;retry=false;output=null;
     const revision=++selection;
-    controls();estimate(revision);
+    previewBusy(enabled);controls();estimate(revision);
   }
   function commitChoice(){
     clearTimeout(timer);
@@ -308,14 +315,14 @@ window.createSmoothingPanel = function ({apply, clear, cancelPreview, inspect}) 
     const revision=++selection;
     panel.hidden=false;enabled=!enabled;retry=false;controls();
     if(!enabled){
-      applied=null;clear();
+      previewBusy(false);applied=null;clear();
       if(chart)display(chart,true);
       setStatus('显示原始走线。');return;
     }
-    const entry=plate.entries.get(strength);
-    if(entry){remember(plate,strength);void present(entry,true,revision);return}
-    setStatus('正在准备当前盘的层时间…');
-    estimate(revision);void calculate();
+    if(!plate.entries.has(strength)){
+      setStatus('正在准备当前盘的层时间…');estimate(revision);
+    }
+    void calculate();
   };
   el('calculateStrength').onclick=calculate;
   slider.oninput=()=>choose(slider.valueAsNumber);
@@ -343,12 +350,12 @@ window.createSmoothingPanel = function ({apply, clear, cancelPreview, inspect}) 
   document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!menu.hidden){closeMenu();el('exportMenuButton').focus()}});
   return {setSource(next){
     clearTimeout(timer);cancelAnimationFrame(previewFrame);cancelPreview();displayRevision++;applied=null;retry=false;
-    const revision=++selection;
+    const revision=++selection;previewBusy(false);
     if(plate&&next.identity===plate.identity&&next.plateName===plate.plateName){
       const entry=plate.entries.get(strength),on=enabled;
       current=null;enabled=false;output=null;controls();
-      if(entry)void present(entry,on,revision);
-      else if(on){enabled=true;controls();estimate(revision);void calculate()}
+      if(on){enabled=true;controls();if(!entry)estimate(revision);void calculate()}
+      else if(entry)void present(entry,false,revision);
       return;
     }
     plate?.close();plate=makePlate(next);current=null;enabled=false;strength=null;output=null;chart=null;

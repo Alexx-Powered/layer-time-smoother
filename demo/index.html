@@ -22,8 +22,8 @@
 .playClocks{display:grid;gap:2px;font:13px var(--mono);font-variant-numeric:tabular-nums;white-space:nowrap}
 .playClocks .clock{color:var(--sub);font-size:.82em}
 @media(max-width:720px){.playClocks{font-size:11px}}
-</style><link rel="stylesheet" href="smooth.css"></head><body>
-<script src="voron-gcode.js"></script><script src="smooth-package.js?v=live-curve-1"></script><script src="smooth-example.js?v=live-curve-1"></script><script src="smooth-worker.js?v=live-curve-1"></script><script src="slicer-open.js"></script><script src="smooth-cache.js?v=live-curve-2"></script><script src="smooth-ui.js?v=live-curve-1"></script>
+</style><link rel="stylesheet" href="smooth.css?v=preview-busy-1"></head><body>
+<script src="voron-gcode.js"></script><script src="smooth-package.js?v=live-curve-1"></script><script src="smooth-example.js?v=live-curve-1"></script><script src="smooth-worker.js?v=live-curve-1"></script><script src="slicer-open.js"></script><script src="smooth-cache.js?v=live-curve-2"></script><script src="smooth-ui.js?v=preview-busy-1"></script>
 <header class="mast"><div class="shell"><span class="brandicon" aria-hidden="true"><svg viewBox="0 0 26 26" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="m3 9 10-5 10 5-10 5zM3 13l10 5 10-5M3 17l10 5 10-5"/></svg></span><span class="brand">层间实验室</span><a id="helpLink" href="#basis">原理与依据 ↘</a></div></header>
 <main class="shell"><div class="intro"><div><h1>冷却层纹演示</h1><p>逐层用时决定主要趋势，局部覆盖时间和填充拉扯修正外墙位移。</p></div><div class="choose"><label for="material">材料</label><select id="material"><option value="pla">PLA</option><option value="petg" selected>PETG</option><option value="plaCF">PLA-CF</option><option value="petgHF">PETG-HF</option><option value="tpu95">TPU-95A</option><option value="tpu75">TPU-75A</option><option value="pa6CF">PA6-CF</option><option value="abs">ABS</option><option value="custom">自定义材料</option></select><button id="upload" class="upload"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 15V3m-5 5 5-5 5 5M4 15v5h16v-5"/></svg>导入 G-code</button><input id="file" type="file" accept=".gcode,.gco,.gc,.gcode.3mf,.3mf" hidden></div></div>
 <p id="materialNote" class="status" role="status" hidden></p><div id="fileStatus" class="status" role="status" hidden></div><div id="plateBox" class="plateBox" hidden><label for="plate">选择打印盘</label><select id="plate"></select><button id="loadPlate">载入这盘</button></div>
@@ -6073,6 +6073,11 @@ function makeViewport(canvas){
         }
       }
     }
+    // A comparison starts by drawing its old shape at mix=0. Notify the
+    // smoothing control only after drawing a frame that includes the new result.
+    if(previewDrawWaiters.length&&(!comparison||comparison.mix>0)){
+      for(const resolve of previewDrawWaiters.splice(0))resolve();
+    }
     const [nx,ny]=probeNormals[probeSide];
     const pin=$('pin');pin.hidden=!!motion||!view.shown[i]||Math.cos(yaw)*nx+Math.sin(yaw)*ny<.10||hx<9||hx>w-50||hy<60||hy>h-42;
     pin.style.left=hx+'px';pin.style.top=hy+'px';$('pinZ').textContent=model.z[i].toFixed(2)+' mm';
@@ -6125,7 +6130,11 @@ function makeViewport(canvas){
     drawProfile(mixed,shown,scale,ref,alpha);
   }
   let comparisonId=0;
+  const previewDrawWaiters=[];
   return {setModel,paintProfile,
+    firstPreviewDraw(){
+      return new Promise(resolve=>{previewDrawWaiters.push(resolve);schedule()});
+    },
     beginComparison(next){
       if(reducedMotion.matches||!view?.thermal||!sameRoadGeometry(data,next)){comparison=null;return}
       const last=comparison,mix=last?.mix??1;
@@ -6757,8 +6766,8 @@ function correspondingPrintTime(before,after,time){
  }
  return b.start+(b.end-b.start)*clamp((time-a.start)/(a.end-a.start||1),0,1);
 }
-function swapPreview(model){
- if(data===model)return;
+function swapPreview(model,waitForDraw=false){
+ if(data===model)return waitForDraw?viewport.firstPreviewDraw():undefined;
  viewport.beginComparison(model);
  const height=data.z[selected],walls=$('scope').value==='walls';
  const replayHeight=layerPlayback===null?null:data.z[layerPlayback];
@@ -6770,6 +6779,7 @@ function swapPreview(model){
  computeTimeline();
  if(printTime!==null)progress=progressAt(simTime(printTime));
  lastTick=null;setScenarioNote();updateFileInfo();frame();
+ if(waitForDraw)return viewport.firstPreviewDraw();
 }
 function cancelSmoothPreview(){
  for(const job of pendingModelReads){job.worker.terminate();job.resolve(null)}
@@ -6798,7 +6808,7 @@ async function applySmoothPreview(blob,r,current){
    model.name=original.name;model.imported=original.imported;referenceModel=model;
  }
  if(!current())return;
- if(!r.changed){swapPreview(referenceModel||original);return}
+ if(!r.changed)return swapPreview(referenceModel||original,true);
  let read=cache.get(blob);
  if(!read){
    const duration=Math.max(.001,original.total+r.afterTotal-r.beforeTotal);
@@ -6809,7 +6819,7 @@ async function applySmoothPreview(blob,r,current){
    if(cache.size>2)cache.delete(cache.keys().next().value);
  }
  const model=await read;
- if(model&&current()){model.name=original.name;swapPreview(model)}
+ if(model&&current()){model.name=original.name;return swapPreview(model,true)}
 }
 smoothingPanel=createSmoothingPanel({apply:applySmoothPreview,clear:()=>swapPreview(referenceModel||originalModel),
  cancelPreview:cancelSmoothPreview,inspect:z=>explore(selectedNear(z))});
