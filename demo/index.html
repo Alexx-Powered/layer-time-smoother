@@ -23,11 +23,11 @@
 .playClocks .clock{color:var(--sub);font-size:.82em}
 @media(max-width:720px){.playClocks{font-size:11px}}
 </style><link rel="stylesheet" href="smooth.css"></head><body>
-<script src="voron-gcode.js"></script><script src="smooth-package.js"></script><script src="smooth-example.js"></script><script src="smooth-worker.js"></script><script src="slicer-open.js"></script><script src="smooth-ui.js"></script>
+<script src="voron-gcode.js"></script><script src="smooth-package.js"></script><script src="smooth-example.js"></script><script src="smooth-worker.js"></script><script src="slicer-open.js"></script><script src="smooth-cache.js"></script><script src="smooth-ui.js"></script>
 <header class="mast"><div class="shell"><span class="brandicon" aria-hidden="true"><svg viewBox="0 0 26 26" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="m3 9 10-5 10 5-10 5zM3 13l10 5 10-5M3 17l10 5 10-5"/></svg></span><span class="brand">层间实验室</span><a id="helpLink" href="#basis">原理与依据 ↘</a></div></header>
 <main class="shell"><div class="intro"><div><h1>冷却层纹演示</h1><p>播放打印过程，看看哪些层冷却后向里缩得更多。</p></div><div class="choose"><label for="material">材料</label><select id="material"><option value="pla">PLA</option><option value="petg" selected>PETG</option><option value="plaCF">PLA-CF</option><option value="petgHF">PETG-HF</option><option value="tpu95">TPU-95A</option><option value="tpu75">TPU-75A</option><option value="pa6CF">PA6-CF</option><option value="abs">ABS</option><option value="custom">自定义材料</option></select><button id="upload" class="upload"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 15V3m-5 5 5-5 5 5M4 15v5h16v-5"/></svg>导入 G-code</button><input id="file" type="file" accept=".gcode,.gco,.gc,.gcode.3mf,.3mf" hidden></div></div>
 <p id="materialNote" class="status" role="status" hidden></p><div id="fileStatus" class="status" role="status" hidden></div><div id="plateBox" class="plateBox" hidden><label for="plate">选择打印盘</label><select id="plate"></select><button id="loadPlate">载入这盘</button></div>
-<div class="lab"><div class="core"><section class="viewport" id="viewport" aria-label="模型预览"><canvas id="bedGrid" class="bedGrid" aria-hidden="true"></canvas><canvas id="stage" class="stage" tabindex="0" aria-label="打印模型。左键拖动旋转，按住中键拖动平移，滚轮缩放。方向键旋转，Shift 加方向键平移，Home 复位。"></canvas><div class="stageHead"><div class="modelTitle"><h2 id="modelTitle"></h2><small id="dimensions"></small><br><span id="fallback" class="fallback" hidden>二维投影</span></div><div class="viewSwitches" role="group" aria-label="3D 视图开关"><button id="amplify" type="button" role="switch" aria-checked="true" aria-label="效果放大" title="切换原始位移与 20 倍显示" class="switch"><i aria-hidden="true"></i><span id="ampText">效果放大</span></button><button type="button" class="switch fieldSwitch" id="color" role="switch" aria-checked="false"><i aria-hidden="true"></i><span>内缩着色</span></button><button type="button" class="switch" id="smoothSwitch" role="switch" aria-checked="false" aria-controls="smoothPanel"><i aria-hidden="true"></i><span>层时间平滑</span></button></div></div>
+<div class="lab"><div class="core"><section class="viewport" id="viewport" aria-label="模型预览"><canvas id="bedGrid" class="bedGrid" aria-hidden="true"></canvas><canvas id="stage" class="stage" tabindex="0" aria-label="打印模型。左键拖动旋转，按住中键拖动平移，滚轮缩放。方向键旋转，Shift 加方向键平移，Home 复位。"></canvas><div class="stageHead"><div class="modelTitle"><h2 id="modelTitle"></h2><small id="dimensions"></small><br><span id="fallback" class="fallback" hidden>二维投影</span></div><div class="viewSwitches" role="group" aria-label="3D 视图开关"><button id="amplify" type="button" role="switch" aria-checked="true" aria-label="效果放大" title="切换原始位移与 20 倍显示" class="switch"><i aria-hidden="true"></i><span id="ampText">效果放大</span></button><button type="button" class="switch fieldSwitch" id="color" role="switch" aria-checked="false"><i aria-hidden="true"></i><span>内缩着色</span></button><button type="button" class="switch" id="smoothSwitch" aria-controls="smoothPanel"><i aria-hidden="true"></i><span id="smoothAction">计算平滑层时间</span></button></div></div>
 <i id="freshLine" aria-hidden="true" hidden></i><div class="pin" id="pin" hidden><i></i><b id="pinZ"></b></div><div class="stageBottom"><div><div class="tools"><button id="zout" class="icon" aria-label="缩小" title="缩小">−</button><button id="zin" class="icon" aria-label="放大" title="放大">＋</button><button id="home" title="恢复初始视角">复位</button></div><small>左键旋转 · 中键平移 · 滚轮缩放</small></div><div class="colorbar"><div class="filamentKey" id="filamentKey" aria-label="切片耗材颜色"></div><div class="legend" id="legend" hidden><span>内缩少</span><i></i><span>多</span></div></div></div></section>
 <aside class="rail"><h2 id="railTitle">沿层高看层纹</h2><select id="probeSide" aria-label="观察哪一侧的外墙" title="按打印板方向选择外墙"><option value="0">前侧（−Y）</option><option value="1">后侧（+Y）</option><option value="2">左侧（−X）</option><option value="3">右侧（+X）</option></select><small>上下拖动，查看附近层</small><div id="profileBox" class="profileBox"><canvas id="profile" class="profile" tabindex="0" role="slider" aria-label="沿模型高度查看附近层" aria-orientation="vertical"></canvas></div><div id="profileKey" class="profileKey" hidden><span class="keyOriginal">原始</span><span class="keySmooth">平滑后</span></div><div class="railFoot" id="railFoot"><span>向右 = 向内</span><b title="1 微米等于 0.001 毫米">µm</b></div></aside></div>
 <div class="transport"><button id="play" class="primary"><span aria-hidden="true" id="playSym">▶</span><span id="playLabel">播放完整过程</span></button><input id="progress" aria-label="打印与冷却进度" type="range" min="0" max="10000" value="10000"><div class="playClocks"><span id="previewClock"></span><span id="clock" class="clock"></span></div><select id="speed" aria-label="播放速度"><option value=".5">0.5× 预览</option><option value="1">1× 预览</option><option value="2">2× 预览</option><option value="3" selected>3× 预览</option><option value="4">4× 预览</option><option value="0">打印机原速</option><option value="-1">整件快览（12 秒）</option></select></div>
@@ -36,9 +36,9 @@
  <div class="smoothHeading"><div><h2>层时间平滑</h2><p>调节填充速度，让相邻层的打印时间过渡得更平缓。</p></div>
  <div class="exportWrap"><div class="splitButton"><button type="button" id="smoothExport" disabled>导出平滑 G-code</button><button type="button" id="exportMenuButton" aria-label="选择切片器打开 G-code" aria-expanded="false" aria-controls="exportMenu" disabled>▾</button></div>
  <div id="exportMenu" class="exportMenu" hidden><button type="button" data-slicer="bambu">在 Bambu Studio 中打开</button><button type="button" data-slicer="orca">在 OrcaSlicer 中打开</button></div></div></div>
- <div class="smoothControls"><div class="strengthCtl"><div class="strengthLabel"><label for="strength">平滑度 <output id="strengthValue" for="strength">自动</output></label><button type="button" id="smoothAuto" aria-pressed="true">自动选参</button></div>
- <input id="strength" type="range" min="0" max="100" step="0.5" value="65" aria-describedby="strengthHint"><small id="strengthHint">拖动可手调，点「自动选参」恢复自动。</small></div>
- <div class="timeMetric"><span>预计整盘用时</span><strong id="smoothTotal">—</strong></div><div class="timeMetric"><span>相对原盘</span><strong id="smoothCost">—</strong></div></div>
+ <div class="smoothControls"><div class="strengthCtl"><div class="strengthLabel"><label for="strength">平滑度 <output id="strengthValue" for="strength">自动</output></label><span class="strengthActions"><button type="button" id="calculateStrength" hidden>计算平滑层时间</button><button type="button" id="smoothAuto" aria-pressed="true">自动选参</button></span></div>
+ <input id="strength" type="range" min="0" max="100" step="0.5" value="65" aria-describedby="strengthHint"><small id="strengthHint">拖动选择平滑度，点计算应用新档位。</small></div>
+ <div class="timeMetric"><span>平滑后预计整盘用时</span><strong id="smoothTotal">—</strong></div><div class="timeMetric"><span>相对原盘</span><strong id="smoothCost">—</strong></div></div>
  <div class="chartHead"><h3>每层打印时间</h3><div class="profileKey"><span class="keyOriginal">原始</span><span class="keySmooth">平滑后</span></div></div>
  <svg id="timeCurve" role="img" aria-label="原始与平滑后的逐层打印时间对比" viewBox="0 0 700 160"></svg>
  <div class="smoothFoot"><span id="smoothStatus" role="status"></span><span id="layerReadout"></span></div></section>
@@ -5732,7 +5732,7 @@ function beadGeometry(paths,z,layerHeight) {
 function makeViewport(canvas){
   const scene=new THREE.Scene(), camera=new THREE.OrthographicCamera(-1,1,1,-1,.01,10000);
   
-  let renderer,flat,model,meshes=[],lightweight=false,view=null,scheduled=false;
+  let renderer,flat,model,meshes=[],lightweight=false,view=null,scheduled=false,previousSurface=null;
   const homeYaw=-1,homePitch=.37;
   const reducedMotion=matchMedia('(prefers-reduced-motion: reduce)');
   let zoom=1,dx=0,dy=0,yaw=homeYaw,pitch=homePitch;
@@ -5900,21 +5900,27 @@ function makeViewport(canvas){
     return g;
   }
   function dispose(m){scene.remove(m);m.geometry.dispose();m.material.dispose()}
-  function setModel(d,keepCamera=false){
-    const light=linePreview(d),newMeshes=[];
+  function setModel(d,keepCamera=false,compare=false){
+    const light=linePreview(d),reuse=compare&&previousSurface?.model===d;
+    const newMeshes=reuse?previousSurface.meshes:[];
+    const newFlatLayers=reuse?previousSurface.flatLayers:[];
     try{
-      if(renderer)for(let i=0;i<d.z.length;i++){
+      if(renderer&&!reuse)for(let i=0;i<d.z.length;i++){
         const z=d.z[i],h=d.thickness[i],paths=d.layers[i];
         const mesh=light?new THREE.LineSegments(lineGeometry(paths,z),new THREE.LineBasicMaterial({vertexColors:true})):
             new THREE.Mesh(beadGeometry(paths,z,h),new THREE.MeshStandardMaterial({roughness:.7,metalness:.035}));
         configureFilaments(mesh,paths,d,light);thermalMaterial(mesh.material);newMeshes.push(mesh);
       }
     }catch(err){newMeshes.forEach(dispose);throw err}
-    meshes.forEach(dispose);meshes=newMeshes;meshes.forEach(m=>scene.add(m));
+    if(previousSurface&&!reuse)previousSurface.meshes.forEach(dispose);
+    if(compare){
+      previousSurface={model,meshes,flatLayers};meshes.forEach(m=>scene.remove(m));
+    }else{previousSurface=null;meshes.forEach(dispose)}
+    meshes=newMeshes;meshes.forEach(m=>scene.add(m));
     model=d;lightweight=light;
     if(!keepCamera){view=null;applyHome();gainTween=null}
     lastBedView='';
-    flatLayers=[];
+    flatLayers=newFlatLayers;
   }
   function schedule(){if(!scheduled){scheduled=true;requestAnimationFrame(render)}}
   function applyHome(){
@@ -6072,6 +6078,32 @@ function makeViewport(canvas){
   $('home').onclick=reset;$('zin').onclick=()=>magnify(1.22);$('zout').onclick=()=>magnify(1/1.22);
   new ResizeObserver(schedule).observe(canvas.parentElement);
   return {setModel,
+    captureComparison(){
+      if(reducedMotion.matches||!view)return ()=>{};
+      // WebGL normally clears its drawing buffer after compositing.
+      if(renderer)renderer.render(scene,camera);
+      const fades=[canvas,$('profile')].map(target=>{
+        const parent=target.parentElement,previous=parent.querySelector('.comparisonFrame');
+        const snapshot=document.createElement('canvas');
+        snapshot.width=target.width;snapshot.height=target.height;snapshot.className='comparisonFrame';
+        snapshot.setAttribute('aria-hidden','true');
+        const ctx=snapshot.getContext('2d');
+        ctx.globalAlpha=Number(getComputedStyle(target).opacity);ctx.drawImage(target,0,0);
+        if(previous){
+          ctx.globalAlpha=Number(getComputedStyle(previous).opacity);ctx.drawImage(previous,0,0);
+          previous.remove();
+        }
+        target.getAnimations().forEach(a=>a.cancel());
+        target.after(snapshot);
+        return ()=>{
+          const timing={duration:320,easing:'ease-in-out'};
+          target.animate([{opacity:0},{opacity:1}],timing);
+          const fade=snapshot.animate([{opacity:1},{opacity:0}],timing);
+          fade.onfinish=fade.oncancel=()=>snapshot.remove();
+        };
+      });
+      return ()=>fades.forEach(fade=>fade());
+    },
     show(st){
     if(!view||$('amplify').disabled||reducedMotion.matches){
       displayedGain=st.gain;gainTween=null;
@@ -6148,7 +6180,10 @@ function canSimulate(){return Number.isFinite(params.alpha)&&params.tg>params.ai
 const displacementGain=20;
 let displayed,data,selected=0,delayLayer=0,local=false,field=false,amplified=true,scenario='raw';
 let thermalRevision=0,settled=[],layerPlayback=null,layerFinished=false;
-let originalModel=null,originalFile=null,referenceModel=null,originalPlate={},referenceProfile=null,referenceKey='',smoothRead=null,smoothingPanel;
+const thermalOwners=new WeakMap();
+let originalModel=null,originalFile=null,referenceModel=null,originalPlate={},referenceProfile=null,referenceKey='',smoothingPanel;
+let referenceRead=null,previewReads=new Map();
+const pendingModelReads=new Set();
 let newVisits=[],gaps=[],endPrint=0,endTime=0,mean=0;
 let progress=1,playing=false,raf=0,lastTick=null,rate=Number($('speed').value);
 let previewPlan=null;
@@ -6181,7 +6216,11 @@ function simTime(t){
 }
 function refreshSamples(){
   updateReference();
-  thermalRevision++;settled=[];data.shrinkRadius=0;data.mechanics=[];
+  const key=JSON.stringify([params,scenario,scenario==='delay'?delayLayer:null]);
+  if(data.thermalKey===key&&data.thermalSettled&&thermalOwners.get(data.layers)===data){settled=data.thermalSettled;return}
+  data.thermalVersion=++thermalRevision;thermalOwners.set(data.layers,data);
+  settled=[];data.shrinkRadius=0;data.mechanics=[];
+  data.thermalKey=null;data.thermalSettled=null;
   if(!canSimulate())return;
   for(const paths of data.layers){
     let finish=0;
@@ -6196,6 +6235,7 @@ function refreshSamples(){
     data.mechanics.push(net);data.shrinkRadius=Math.max(data.shrinkRadius,net.radius*.5);
     settled.push(finish+12*params.tau);
   }
+  data.thermalSettled=settled;data.thermalKey=key;
 }
 // Interpolate deformed segment endpoints just as the renderers do. Offset is original minus deformed XY.
 function probeOffset(i,t,side){
@@ -6321,7 +6361,7 @@ function showControls(){
 }
 const sideNames=['前侧','后侧','左侧','右侧'];
 let probeSide=0,includePull=true;
-$('includePull').onchange=()=>{includePull=$('includePull').checked;thermalRevision++;updateReference();frame()};
+$('includePull').onchange=()=>{includePull=$('includePull').checked;updateReference();frame()};
 function wallReading(um){return (um<0?'外移 ':'内缩 ')+fmt(Math.abs(um))+' µm'}
 $('probeSide').onchange=()=>{probeSide=Number($('probeSide').value);frame()};
 function frame(){
@@ -6342,7 +6382,7 @@ function frame(){
  }
  const drawn=displayed===data?shown:shown.map((count,i)=>local&&i>hi?0:whole||i<active?displayed.counts[i]:i>active?0:layerFinished&&i===layerPlayback?displayed.counts[i]:upper(displayed.ends[i],source-data.starts[i]));
  const motion=printing&&!whole&&!layerFinished?currentMotion(source):null;
- viewport.show({t,thermal,revision:thermalRevision,settled,motion,disp,shown:drawn,selected,local,lo,hi,field:thermal&&field,gain:amplified&&thermal?displacementGain:1,colorMax:scale});
+ viewport.show({t,thermal,revision:data.thermalVersion*2+Number(includePull),settled,motion,disp,shown:drawn,selected,local,lo,hi,field:thermal&&field,gain:amplified&&thermal?displacementGain:1,colorMax:scale});
  $('profile').setAttribute('aria-valuenow',fmt(data.z[selected],2));$('profile').setAttribute('aria-valuetext',fmt(data.z[selected],2)+' 毫米，第 '+(selected+1)+' 层');
  if(document.activeElement!==$('height'))$('height').value=fmt(data.z[selected],2);
  $('down').disabled=selected===0;$('up').disabled=selected===n-1;
@@ -6547,7 +6587,7 @@ function readFile(file,plate,objectId){
    pendingFile=null;
    if(result.error){announceStatus(result.error);return}
    try{const m=result.sameDemo?{...demo,filamentColors:result.filamentColors||demo.filamentColors,name:result.sameDemo,imported:true,sameDemo:true}:prepare(result.model);
-     if(result.sameDemo&&m.walls)m.walls={...m.walls,filamentColors:m.filamentColors};install(m);const sourceBlob=result.sourceFile;setSmoothSource(m,()=>sourceBlob,nameForExport(file.name,plate||m.name),result.plateInfo);loadedFile=file;loadedPlate=plate;announceStatus(m.objectId?'这盘有 '+m.objectIds.length+' 个物件，可在「分析物件」中切换。等待时间包含同盘其他物件的打印。':'已载入 '+file.name+'。')}
+     if(result.sameDemo&&m.walls)m.walls={...m.walls,filamentColors:m.filamentColors};install(m);const sourceBlob=result.sourceFile;setSmoothSource(m,()=>sourceBlob,nameForExport(file.name,plate||m.name),result.plateInfo,file,plate);loadedFile=file;loadedPlate=plate;announceStatus(m.objectId?'这盘有 '+m.objectIds.length+' 个物件，可在「分析物件」中切换。等待时间包含同盘其他物件的打印。':'已载入 '+file.name+'。')}
    catch(err){announceStatus('模型暂时无法显示。'+err.message)}
  };
  job.onerror=e=>{if(token!==loadToken)return;finish();pendingFile=null;announceStatus('读取失败。'+(e.message||'请检查是否为文本 G-code 或切片 3MF。'))};
@@ -6564,9 +6604,9 @@ function nameForExport(filename,plate){
  const slot=/plate_(\d+)\.gcode/i.exec(plate||'');
  return (clean+(slot?'_plate_'+slot[1]:'')).replace(/[<>:"/\\|?*]/g,'_');
 }
-function setSmoothSource(model,file,name,plateInfo){
+function setSmoothSource(model,file,name,plateInfo,identity=model,plateName=null){
  originalModel=model;originalFile=file;referenceModel=null;originalPlate=plateInfo||{};referenceProfile=null;referenceKey='';
- smoothingPanel.setSource({file,name,builtin:model===demo});
+ smoothingPanel.setSource({file,name,builtin:model===demo,identity,plateName});
 }
 function updateReference(){
  if(!originalModel||data===originalModel||!canSimulate())return;
@@ -6591,44 +6631,59 @@ function updateReference(){
 }
 function swapPreview(model){
  if(data===model)return;
- pause();const height=data.z[selected],walls=$('scope').value==='walls';
+ const fade=viewport.captureComparison(),height=data.z[selected],walls=$('scope').value==='walls';
+ const replayHeight=layerPlayback===null?null:data.z[layerPlayback];
+ const oldStart=layerPlayback===null?0:simTime(data.starts[layerPlayback]);
+ const layerFraction=replayHeight===null?0:clamp((timeAt(progress)-oldStart)/
+   Math.max(.000001,simTime(data.starts[layerPlayback]+data.duration[layerPlayback])-oldStart),0,1);
  data=model;displayed=walls&&data.walls?data.walls:data;
- viewport.setModel(displayed,true);selected=selectedNear(height);
- layerFinished=false;layerPlayback=null;scenario='raw';$('scenario').value=scenario;
+ viewport.setModel(displayed,true,true);selected=selectedNear(height);
+ layerPlayback=replayHeight===null?null:selectedNear(replayHeight);scenario='raw';$('scenario').value=scenario;
  $('scenario').disabled=data!==originalModel||data.z.length===1;
- computeTimeline();setScenarioNote();updateFileInfo();frame();
+ computeTimeline();
+ if(layerPlayback!==null){
+   const start=data.starts[layerPlayback];progress=progressAt(simTime(start+data.duration[layerPlayback]*layerFraction));
+ }
+ lastTick=null;setScenarioNote();updateFileInfo();frame();fade();
 }
 function cancelSmoothPreview(){
- if(!smoothRead)return;
- const pending=smoothRead;smoothRead=null;pending.worker.terminate();pending.resolve();
+ for(const job of pendingModelReads){job.worker.terminate();job.resolve(null)}
+ pendingModelReads.clear();referenceRead=null;previewReads=new Map();
 }
 function readPreviewModel(blob,estimatedDuration){
  return new Promise((resolve,reject)=>{
-   const job=new Worker(workerURL);smoothRead={worker:job,resolve};
-   function finish(){job.terminate();if(smoothRead?.worker===job)smoothRead=null}
-   job.onerror=e=>{finish();reject(Error(e.message||'读取平滑走线失败'))};
-   job.onmessage=({data:message})=>{
+   const worker=new Worker(workerURL),job={worker,resolve};pendingModelReads.add(job);
+   function finish(){worker.terminate();pendingModelReads.delete(job)}
+   worker.onerror=e=>{finish();reject(Error(e.message||'读取平滑走线失败'))};
+   worker.onmessage=({data:message})=>{
      finish();if(message.error){reject(Error(message.error));return}
      try{resolve(prepare(message.model))}catch(error){reject(error)}
    };
-   job.postMessage({file:new File([blob],'preview.gcode'),objectId:originalModel.objectId,
+   worker.postMessage({file:new File([blob],'preview.gcode'),objectId:originalModel.objectId,
      previewOnly:true,estimatedDuration,plateInfo:originalPlate});
  });
 }
 async function applySmoothPreview(blob,r,current){
  if(!r.changed){swapPreview(originalModel);return}
- // The built-in renderer uses a compact preprocessed mesh. Compare both files
- // through the same G-code reader when plotting the effect of feed changes.
- if(!referenceModel&&(originalModel===demo||originalModel.sameDemo)){
-   const input=await originalFile();if(!current())return;
-   const model=await readPreviewModel(input,originalModel.total);if(!current())return;
+ const original=originalModel,cache=previewReads;
+ if(!referenceModel&&(original===demo||original.sameDemo)){
+   referenceRead??=Promise.resolve(originalFile()).then(input=>original===originalModel?readPreviewModel(input,original.total):null)
+     .catch(error=>{if(original===originalModel)referenceRead=null;throw error});
+   const model=await referenceRead;if(!model||original!==originalModel)return;
    referenceModel=model;
  }
- // The file header is preserved on export. Use the verified plate time delta
- // with the new motion commands for the object playback and thermal simulation.
- const duration=Math.max(.001,originalModel.total+r.afterTotal-r.beforeTotal);
- const model=await readPreviewModel(blob,duration);
- if(current()){model.name=originalModel.name;swapPreview(model)}
+ if(!current())return;
+ let read=cache.get(blob);
+ if(!read){
+   const duration=Math.max(.001,original.total+r.afterTotal-r.beforeTotal);
+   read=readPreviewModel(blob,duration).catch(error=>{cache.delete(blob);throw error});
+   cache.set(blob,read);
+   // Keep the current comparison ready to toggle. Older G-code and time
+   // curves remain in the plate cache even for multi-million-segment models.
+   if(cache.size>2)cache.delete(cache.keys().next().value);
+ }
+ const model=await read;
+ if(model&&current()){model.name=original.name;swapPreview(model)}
 }
 smoothingPanel=createSmoothingPanel({apply:applySmoothPreview,clear:()=>swapPreview(originalModel),
  cancelPreview:cancelSmoothPreview,inspect:z=>explore(selectedNear(z))});

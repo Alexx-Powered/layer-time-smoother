@@ -3,10 +3,10 @@ window.createSmoothingPanel = function ({apply, clear, cancelPreview, inspect}) 
   const el = id => document.getElementById(id);
   const panel = el('smoothPanel'), slider = el('strength'), menu = el('exportMenu');
   const svg = el('timeCurve'), status = el('smoothStatus');
-  let source, enabled = false, sourceVersion = 0, selection = 0, strength = null;
-  let worker, ready = false, running = null, result, output, chart, layer = 0, timer;
-  let requestId = 0, filePromise;
-  const gcodeBlob = () => filePromise ||= Promise.resolve().then(source.file);
+  let plate, enabled=false, selection=0, strength=null, current=null, chart=null, layer=0, timer;
+  let output=null, displayRevision=0, animation=0, painted=[], opacity=0;
+  const keyFor = strength => strength===null?'auto':String(strength);
+  const reducedMotion=matchMedia('(prefers-reduced-motion: reduce)');
   function exportReady(available) {
     el('smoothExport').disabled = el('exportMenuButton').disabled = !available;
     if (!available) closeMenu();
@@ -37,8 +37,8 @@ window.createSmoothingPanel = function ({apply, clear, cancelPreview, inspect}) 
     cursor.setAttribute('x1',chartX(layer));cursor.setAttribute('x2',chartX(layer));
     el('layerReadout').textContent='第 '+(layer+1)+' 层　原始 '+chart.before[layer].toFixed(1)+' 秒 · 平滑 '+chart.after[layer].toFixed(1)+' 秒';
   }
-  function drawChart() {
-    svg.replaceChildren();
+  function drawChart(animate=false) {
+    cancelAnimationFrame(animation);svg.replaceChildren();
     if (!chart?.before.length) return;
     const width = Math.max(250,svg.clientWidth || 680),height=160,left=43,right=width-14,top=17,bottom=133;
     const count=chart.before.length;
@@ -61,11 +61,27 @@ window.createSmoothingPanel = function ({apply, clear, cancelPreview, inspect}) 
     }
     add('text',{x:left,y:151},'第 1 层');
     if(count>1) add('text',{x:right,y:151,'text-anchor':'end'},'第 '+count+' 层');
-    for(const [curve,ink,dash] of [[chart.after,'#ffac53',''],[chart.before,'#beb7ae','5 4']]){
-      const points=curve.map((s,i)=>chartX(i).toFixed(2)+','+y(s).toFixed(2)).join(' ');
-      add('polyline',{points,fill:'none',stroke:ink,'stroke-width':dash?1.4:2,'stroke-dasharray':dash});
-      if(count===1) add('circle',{cx:chartX(0),cy:y(curve[0]),r:2.5,fill:ink});
+    const points=values=>values.map((s,i)=>chartX(i).toFixed(2)+','+y(s).toFixed(2)).join(' ');
+    const target=enabled?chart.after:chart.before,alpha=enabled?1:0;
+    const line=add('polyline',{fill:'none',stroke:'#ffac53','stroke-width':2});
+    add('polyline',{points:points(chart.before),fill:'none',stroke:'#beb7ae','stroke-width':1.4,'stroke-dasharray':'5 4'});
+    const dot=count===1?add('circle',{cx:chartX(0),r:2.5,fill:'#ffac53'}):null;
+    if(count===1)add('circle',{cx:chartX(0),cy:y(chart.before[0]),r:1.5,fill:'#beb7ae'});
+    function paint(values,a){
+      painted=values;opacity=a;line.setAttribute('points',points(values));line.setAttribute('opacity',a);
+      if(dot){dot.setAttribute('cy',y(values[0]));dot.setAttribute('opacity',a)}
     }
+    if(animate===true&&!reducedMotion.matches&&!panel.hidden){
+      const from=painted.length===count?painted:chart.before,initial=opacity;
+      let start;paint(from,initial);
+      function step(now){
+        start??=now;
+        const t=Math.min(1,(now-start)/320),f=t*t*(3-2*t);
+        paint(t===1?target:target.map((v,i)=>from[i]+(v-from[i])*f),initial+(alpha-initial)*f);
+        if(t<1)animation=requestAnimationFrame(step);
+      }
+      animation=requestAnimationFrame(step);
+    }else paint(target,alpha);
     add('line',{'data-layer':'',y1:top,y2:bottom,stroke:'#ecbf79','stroke-opacity':.55});
     layer=Math.min(layer,count-1);markLayer();
   }
@@ -75,104 +91,187 @@ window.createSmoothingPanel = function ({apply, clear, cancelPreview, inspect}) 
     const i=Math.min(chart.heights.length-1,Math.max(0,Math.round((x-chartX(0))/(chartX(1)-chartX(0))||0)));
     inspect(chart.heights[i]);
   });
-  new ResizeObserver(drawChart).observe(svg);
-  function display(r,provisional) {
-    chart=r;drawChart();
-    const delta=r.afterTotal-r.beforeTotal;
-    el('smoothTotal').textContent=formatTime(r.afterTotal);
+  let lastChartWidth=0;
+  new ResizeObserver(()=>{
+    if(svg.clientWidth!==lastChartWidth){lastChartWidth=svg.clientWidth;drawChart()}
+  }).observe(svg);
+  function display(entry,animate){
+    chart=entry.result;drawChart(animate);
+    const delta=chart.afterTotal-chart.beforeTotal;
+    el('smoothTotal').textContent=formatTime(chart.afterTotal);
     const sign=delta<-.05?'−':delta>.05?'+':'';
-    el('smoothCost').textContent=sign+formatTime(delta)+'（'+sign+(r.beforeTotal?Math.abs(100*delta/r.beforeTotal):0).toFixed(1)+'%）';
-    if(strength===null){
-      el('strengthValue').textContent=r.selected==null?'自动 · 保留原速':'自动 · '+r.selected;
-      if(r.selected!=null) slider.value=r.selected;
+    el('smoothCost').textContent=sign+formatTime(delta)+'（'+sign+(chart.beforeTotal?Math.abs(100*delta/chart.beforeTotal):0).toFixed(1)+'%）';
+  }
+  function controls(){
+    const entry=plate.entries.get(strength),busy=plate.jobs.has(strength);
+    const button=el('smoothSwitch');
+    if(entry){
+      button.setAttribute('role','switch');
+      button.setAttribute('aria-checked',String(enabled&&current===entry));
+    }else{
+      button.removeAttribute('role');button.removeAttribute('aria-checked');
     }
-    if(provisional)setStatus('调速预估 · 正在重算导出后的走线。');
-  }
-  function resetResult(){
-    chart=null;result=null;output=null;exportReady(false);drawChart();
-    el('smoothTotal').textContent=el('smoothCost').textContent='—';
-    el('layerReadout').textContent='';
-  }
-  function stopWorker(){
-    if(worker)worker.terminate();
-    worker=null;ready=false;running=null;
-  }
-  async function accept(r,blob,revision){
-    if(!enabled||revision!==selection)return;
-    result=r;output=blob;display(r,false);exportReady(true);
-    const message=r.changed?'已按导出指令重算。':'本次保留原始进给。';
-    setStatus(message+(r.changed?' 正在更新 3D 预览…':''));
-    try{
-      await apply(blob,r,()=>enabled&&revision===selection);
-      if(enabled&&revision===selection)setStatus(message);
-    }catch(error){
-      if(enabled&&revision===selection)setStatus(message+' 3D 预览未更新：'+error.message);
-    }
-  }
-  function fail(message){resetResult();clear();setStatus(message+'　可点「自动选参」重试。')}
-  function queueCompute(){
-    if(!enabled||!ready||running||result)return;
-    if(source.builtin&&strength===null&&window.LayerSmoothingWorker?.getDemoAuto)return;
-    const id=++requestId;running={id,revision:selection,strength,result:null};
-    worker.postMessage({type:'calculate',id,strength});
-  }
-  async function begin(revision){
-    try {
-      if(source.builtin && strength===null && window.LayerSmoothingWorker?.getDemoAuto){
-        const cached=await window.LayerSmoothingWorker.getDemoAuto();
-        if(revision!==selection||!enabled)return;
-        const blob=cached.bytes?new Blob([cached.bytes]):await gcodeBlob();
-        await accept(cached.result,blob,revision);return;
-      }
-      if(worker){queueCompute();return}
-      const owner=sourceVersion,w=window.LayerSmoothingWorker.create();worker=w;
-      w.onmessage=({data:m})=>{
-        if(worker!==w||sourceVersion!==owner||!enabled)return;
-        if(m.type==='loaded'){ready=true;queueCompute();return}
-        if(m.type==='status'){if(!running||running.revision===selection)setStatus(m.message);return}
-        if(m.type==='error'){
-          if(!running){stopWorker();fail(m.message);return}
-          const current=running.revision===selection;running=null;
-          if(current)fail(m.message);else queueCompute();return;
-        }
-        if(!running||m.id!==running.id)return;
-        if(m.type==='preview'){if(running.revision===selection)display(m,true);return}
-        if(m.type==='result'){
-          if(running.revision!==selection){running=null;queueCompute();return}
-          running.result=m;display(m,false);
-          w.postMessage({type:'export',id:m.id,strength:running.strength});return;
-        }
-        if(m.type==='file'){
-          const done=running;running=null;
-          if(done.revision===selection)void accept(done.result,new Blob([m.bytes],{type:'application/octet-stream'}),done.revision);
-          else queueCompute();
-        }
-      };
-      w.onerror=e=>{if(worker===w){stopWorker();fail(e.message||'平滑引擎启动失败。')}};
-      const bytes=await (await gcodeBlob()).arrayBuffer();
-      if(worker!==w||sourceVersion!==owner)return;
-      w.postMessage({type:'load',id:++requestId,bytes},[bytes]);
-    }catch(error){if(revision===selection&&enabled){stopWorker();fail(error.message)}}
-  }
-  function recalculate(debounce=false){
-    const revision=++selection;
-    clearTimeout(timer);cancelPreview();resetResult();
+    button.disabled=!entry&&busy;
+    el('smoothAction').textContent=entry?'层时间平滑':busy?'正在计算…':'计算平滑层时间';
+    el('calculateStrength').hidden=!!entry;
+    el('calculateStrength').disabled=busy;
     el('smoothAuto').setAttribute('aria-pressed',String(strength===null));
-    el('strengthValue').textContent=strength===null?'自动':String(strength);
-    setStatus(strength===null?'正在为这一盘自动选参…':'正在计算平滑度 '+strength+'…');
-    timer=setTimeout(()=>begin(revision),debounce?180:0);
+    const selected=entry?.result.selected;
+    el('strengthValue').textContent=strength!==null?String(strength):!entry?'自动':selected==null?'自动 · 保留原速':'自动 · '+selected;
+    if(strength===null&&selected!=null)slider.value=selected;
+    exportReady(!!entry&&entry===current&&!!output);
   }
-  function toggle(value){
-    enabled=value;el('smoothSwitch').setAttribute('aria-checked',String(value));panel.hidden=!value;
-    if(value){strength=null;recalculate();return}
-    selection++;clearTimeout(timer);stopWorker();cancelPreview();resetResult();clear();
+  // A single worker owns this plate. Serialize calculation + export so the
+  // Python solver's most recent result always matches the bytes being saved.
+  function makePlate(source){
+    let input,worker,ready,serial=Promise.resolve(),requestId=0,closed=false;
+    const requests=new Map();
+    const file=()=>input ||= Promise.resolve().then(source.file);
+    const store=createPlateSmoothingCache({...source,file});
+    const state={...source,file,store,entries:new Map(),jobs:new Map()};
+    function retain(value,entry){
+      state.entries.set(value,entry);
+      for(const [key,older] of state.entries){
+        if(state.entries.size<=3)break;
+        if(older.saved&&key!==value&&key!==strength&&older!==current)state.entries.delete(key);
+      }
+    }
+    function closeWorker(){
+      if(worker)worker.terminate();worker=null;ready=null;
+      for(const req of requests.values())req.reject(Error('当前切片已切换。'));
+      requests.clear();
+    }
+    state.close=()=>{closed=true;closeWorker()};
+    function request(type,body,transfer=[]){
+      if(closed||!worker)return Promise.reject(Error('当前切片已切换。'));
+      const id=++requestId;
+      return new Promise((resolve,reject)=>{
+        requests.set(id,{resolve,reject});
+        try{worker.postMessage({type,id,...body},transfer)}catch(e){requests.delete(id);reject(e)}
+      });
+    }
+    async function start(){
+      worker=LayerSmoothingWorker.create();
+      worker.onmessage=({data:m})=>{
+        const req=requests.get(m.id);if(!req)return;
+        if(m.type==='status'||m.type==='preview')return;
+        requests.delete(m.id);
+        if(m.type==='error')req.reject(Error(m.message));else req.resolve(m);
+      };
+      worker.onerror=()=>closeWorker();
+      const bytes=await (await file()).arrayBuffer();
+      await request('load',{bytes},[bytes]);
+    }
+    state.find=async value=>{
+      if(state.entries.has(value))return state.entries.get(value);
+      const saved=await store.read(keyFor(value));
+      if(saved&&!closed&&!state.entries.has(value))retain(value,saved);
+      return state.entries.get(value);
+    };
+    state.solve=value=>{
+      if(state.jobs.has(value))return state.jobs.get(value);
+      async function work(){
+        if(closed)throw Error('当前切片已切换。');
+        const existing=await state.find(value);if(existing)return existing;
+        let r,blob=null;
+        if(source.builtin&&value===null){
+          const cached=await LayerSmoothingWorker.getDemoAuto();r=cached.result;
+          if(r.changed)blob=new Blob([cached.bytes],{type:'application/octet-stream'});
+        }else{
+          if(!ready)ready=start().catch(error=>{closeWorker();throw error});
+          await ready;
+          r=await request('calculate',{strength:value});
+          if(r.changed){
+            const reply=await request('export',{strength:value});
+            blob=new Blob([reply.bytes],{type:'application/octet-stream'});
+          }
+        }
+        const entry={result:r,blob};
+        if(!closed){
+          entry.saved=!!(await store.write(keyFor(value),{...entry,saved:true}));
+          if(!closed)retain(value,entry);
+        }
+        return entry;
+      }
+      const job=serial.then(work).finally(()=>state.jobs.delete(value));
+      serial=job.catch(()=>{});state.jobs.set(value,job);return job;
+    };
+    return state;
   }
-  el('smoothSwitch').onclick=()=>toggle(!enabled);
-  slider.oninput=()=>{strength=slider.valueAsNumber;recalculate(true)};
-  el('smoothAuto').onclick=()=>{strength=null;recalculate()};
+  async function present(entry,on,revision){
+    if(revision!==selection)return;
+    const owner=plate;
+    const blob=entry.blob||await owner.file();
+    if(revision!==selection)return;
+    const changed=current!==entry||enabled!==on;
+    current=entry;output=blob;enabled=on;
+    controls();display(entry,changed);
+    const note=entry.saved?'结果已保存到本机。':'本次打开期间复用此结果。';
+    setStatus(!on?'显示原始走线。'+note:entry.result.changed?'显示平滑走线。'+note:'本档保留原始进给。'+note);
+    if(!changed)return;
+    const transition=++displayRevision;
+    try{
+      if(on)await apply(blob,entry.result,()=>transition===displayRevision&&enabled);
+      else clear();
+    }catch(error){
+      if(owner!==plate||transition!==displayRevision)return;
+      enabled=false;clear();controls();drawChart(true);
+      setStatus('平滑结果已就绪，3D 预览读取失败。可打开开关重试。'+error.message);
+    }
+  }
+  async function calculate(){
+    if(!plate||plate.jobs.has(strength))return;
+    const owner=plate,value=strength,revision=++selection;
+    clearTimeout(timer);panel.hidden=false;
+    const task=owner.solve(value);
+    controls();setStatus(value===null?'正在为当前盘自动选参…':'正在计算平滑度 '+value+'…');
+    try{
+      const entry=await task;if(revision!==selection)return;
+      remember(owner,value);
+      await present(entry,true,revision);
+    }catch(error){if(revision===selection)setStatus(error.message+'　可再次点击计算。')}
+    finally{if(owner===plate)controls()}
+  }
+  function remember(owner,value){
+    if(owner.last===value)return;
+    owner.last=value;void owner.store.write('last',{strength:value});
+  }
+  function choose(value){
+    if(value===strength)return;
+    strength=value;
+    const revision=++selection;clearTimeout(timer);controls();
+    const known=plate.entries.get(value);
+    if(known){
+      remember(plate,value);void present(known,enabled,revision);return;
+    }
+    const previous=current?.result.strength;
+    const label=previous==null?'自动档':'平滑度 '+previous;
+    setStatus((current?'时间数据仍为'+label+'。':'')+'点击「计算平滑层时间」应用新参数。');
+    async function reuse(){
+      const owner=plate;
+      try{
+        const entry=await (owner.jobs.get(value)||owner.find(value));
+        if(revision===selection&&entry){
+          remember(owner,value);
+          await present(entry,enabled,revision);
+        }
+      }catch(error){if(revision===selection)setStatus(error.message)}
+    }
+    timer=setTimeout(reuse,120);
+  }
+  el('smoothSwitch').onclick=()=>{
+    const entry=plate.entries.get(strength);
+    if(!entry){void calculate();return}
+    clearTimeout(timer);panel.hidden=false;
+    const on=current===entry?!enabled:true;
+    remember(plate,strength);void present(entry,on,++selection);
+  };
+  el('calculateStrength').onclick=calculate;
+  slider.oninput=()=>choose(slider.valueAsNumber);
+  el('smoothAuto').onclick=()=>choose(null);
   function name(){
     const suffix=strength===null?'auto':String(strength);
-    return source.name+'-smooth-'+suffix+'.gcode';
+    return plate.name+'-smooth-'+suffix+'.gcode';
   }
   el('smoothExport').onclick=()=>{
     if(!output)return;
@@ -191,8 +290,28 @@ window.createSmoothingPanel = function ({apply, clear, cancelPreview, inspect}) 
   document.addEventListener('click',e=>{if(!e.target.closest('.exportWrap'))closeMenu()});
   document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!menu.hidden){closeMenu();el('exportMenuButton').focus()}});
   return {setSource(next){
-    sourceVersion++;selection++;clearTimeout(timer);stopWorker();cancelPreview();filePromise=null;
-    source=next;strength=null;slider.value=65;resetResult();
-    if(enabled)recalculate();
+    clearTimeout(timer);cancelPreview();displayRevision++;
+    const revision=++selection;
+    if(plate&&next.identity===plate.identity&&next.plateName===plate.plateName){
+      const entry=plate.entries.get(strength),on=enabled;
+      current=null;enabled=false;output=null;controls();
+      if(entry)void present(entry,on,revision);
+      else if(plate.jobs.has(strength)){
+        void plate.jobs.get(strength).then(e=>present(e,true,revision))
+          .catch(error=>{if(revision===selection)setStatus(error.message+'　可再次点击计算。')})
+          .finally(()=>{if(revision===selection)controls()});
+      }
+      return;
+    }
+    plate?.close();plate=makePlate(next);current=null;enabled=false;strength=null;output=null;chart=null;
+    slider.value=65;panel.hidden=true;painted=[];opacity=0;drawChart();controls();
+    el('layerReadout').textContent='';el('smoothTotal').textContent=el('smoothCost').textContent='—';
+    const owner=plate;
+    (async()=>{
+      const last=await owner.store.read('last');if(!last||revision!==selection)return;
+      const entry=await owner.find(last.strength);if(!entry||revision!==selection)return;
+      owner.last=strength=last.strength;if(strength!==null)slider.value=strength;
+      await present(entry,false,revision);
+    })().catch(()=>{});
   },selectLayer};
 };

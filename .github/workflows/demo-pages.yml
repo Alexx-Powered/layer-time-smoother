@@ -23,6 +23,8 @@ jobs:
       - name: Check demo scripts
         run: |
           node --check demo/smooth-ui.js
+          node --check demo/smooth-cache.js
+          node 工具/check_demo_switch.cjs
           node --check demo/smooth-worker.js
           node --check demo/slicer-open.js
           test -s demo/index.html && test -s demo/runtime/pyodide.asm.wasm

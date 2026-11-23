@@ -145,9 +145,11 @@
   }
 
   const scriptURL = document.currentScript?.src || document.baseURI;
+  const runtimeVersion = "0.27.7";
   const runtimeURL = new URL(scriptURL).protocol === "file:" ?
-    "https://cdn.jsdelivr.net/pyodide/v0.27.7/full/" : new URL("runtime/", scriptURL).href;
+    `https://cdn.jsdelivr.net/pyodide/v${runtimeVersion}/full/` : new URL("runtime/", scriptURL).href;
   globalThis.LayerSmoothingWorker = {
+    cacheSignature: () => [globalThis.layerSmoothingPackage,runtimeVersion,MotionCache.toString(),startWorker.toString()].join("\n"),
     create() {
       if (!globalThis.layerSmoothingPackage) throw Error("网页缺少平滑算法包。");
       const source = "(" + startWorker.toString() + ")(" + MotionCache.toString() + "," +
