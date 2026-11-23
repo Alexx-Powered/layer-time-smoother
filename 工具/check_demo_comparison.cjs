@@ -41,6 +41,10 @@ assert.equal(before.layers[0][0].displacement,undefined);
 const zeroRange=ctx.shrinkColorRange(before,{...petg,alpha:0});
 assert.equal(zeroRange.min,0);assert(zeroRange.max>=.5);
 assert.deepEqual(ctx.shrinkColorRange(before,petg),range);
+for(const model of [before,after]){
+  assert(model.wallPairs.slice(0,2).every(layer=>layer.every(side=>side.length===0)));
+  assert(model.wallPairs[2][0].length>0,'First plotted step compares layers three and two');
+}
 assert.equal(after.layerTiming,true);assert.deepEqual(Array.from(after.duration),[11,18,25]);
 assert.equal(ctx.sameRoadGeometry(before,after),true);
 const source=ctx.nozzleTrack(before),target=ctx.nozzleTrack(after);
