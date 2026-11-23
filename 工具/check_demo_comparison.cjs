@@ -104,3 +104,45 @@ const shrink=new Float32Array(90004);shrink.set([2,4,3],90001);
 ctx.writeOffsets({geometry:g},paths,'localShrink',shrink,1);
 assert.deepEqual([...g.getAttribute('localShrink').array.slice(-4)],[2,4,4,3]);
 console.log('Dense bead dimensions, corner joins, travel gaps and thermal endpoints verified.');
+
+// A layer ridge away from the centreline, a nominal slope and a detached wall.
+// The same packed coordinates go to the worker, the rendered pin and both traces.
+function exterior(xy,base=0,height=.2){
+  return {xy,times:Array(xy.length/2).fill(0),nodeBase:base,rank:2,h:height,width:.42};
+}
+const outer=[0,0,10,0,20,0,30,0,40,0];
+const lowWalls=[exterior([0,4,40,4]),exterior(outer,2)];
+const highWalls=[exterior([0,4.1,40,4.1],0,.1),exterior(outer.map((v,i)=>i%2?v+.1:v),2,.1)];
+const paired=ctx.pairedWalls(ctx.wallSection(lowWalls),ctx.wallSection(highWalls),.1);
+const shared=Float32Array.from({length:14},(_,i)=>i%2?.017:.023),ridge=shared.slice();
+assert.equal(ctx.bandReading(paired[0],shared,shared).step,0,'Uniform translation cancels on a sloped nominal surface');
+ridge[13]-=.04;ridge[11]-=.04;
+const peak=ctx.bandReading(paired[0],shared,ridge);
+assert(Math.abs(peak.step-40)<.001);
+assert.equal(peak.hit.path,1);assert(peak.hit.j>=3);
+assert.equal(ctx.bandReading(paired[1],shared,ridge).step,0,'Rear view samples its own wall');
+assert.equal(ctx.bandReading(paired[0],shared,ridge,Infinity,1),null,'Unprinted front wall');
+assert.equal(ctx.bandReading(paired[0],shared,ridge,Infinity,3).step,0,'Unprinted end of the front wall');
+assert(Math.abs(ctx.bandReading(paired[0],shared,ridge,Infinity,Infinity,shared,shared,.25).step-10)<.001);
+const floating=ctx.pairedWalls(ctx.wallSection(lowWalls),ctx.wallSection(highWalls),.3);
+assert.equal(ctx.bandReading(floating[0],shared,ridge),null,'Vertical air gap');
+const distant=ctx.pairedWalls(ctx.wallSection([exterior(outer)]),
+  ctx.wallSection([exterior(outer.map((v,i)=>i%2?v+5:v))]),.2);
+assert.equal(ctx.bandReading(distant[0],shared,ridge),null,'Different surfaces across an opening');
+// Exercise the real canvas labels for uneven Z intervals and for a single layer.
+const labels=[],pen={measureText:t=>({width:String(t).length*6}),fillText:(t,x,y)=>labels.push([t,x,y])};
+const canvas={getContext:()=>new Proxy(pen,{get:(o,k)=>o[k]||(()=>{})})};
+const chartCtx=vm.createContext({data:{z:[.18,.29,.62,.98,1.27]},selected:2,clamp:ctx.clamp||((v,a,b)=>Math.max(a,Math.min(v,b))),
+  upper:(z,v)=>z.filter(h=>h<=v).length,$:id=>id==='profile'?canvas:{clientWidth:200,clientHeight:420},
+  devicePixelRatio:1,canSimulate:()=>true,chartAxis:{}});
+vm.runInContext(section('function selectedNear(z)','function showControls()')+
+  section('function drawProfile(','function pause()'),chartCtx);
+function checkTick(height,layer){
+  const a=labels.find(([label])=>label===height),b=labels.find(([label,x])=>label===layer&&x>150);
+  assert(a&&b&&a[2]===b[2]);
+}
+chartCtx.drawProfile([NaN,1,2,1,0],[1,1,1,1,1],2,null);
+checkTick('0.62','3');checkTick('1.27','5');checkTick('0.18','1');
+labels.length=0;chartCtx.data.z=[.28];chartCtx.selected=0;
+chartCtx.drawProfile([NaN],[1],0,null);checkTick('0.28','1');
+console.log('Visible layer steps, transitions, air gaps, playback and dual height/layer scales verified.');
