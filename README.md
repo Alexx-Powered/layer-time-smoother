@@ -1,5 +1,7 @@
 # Layer Time Smoother
 
+**[打开冷却层纹与层时间平滑 Demo](https://alexx-powered.github.io/layer-time-smoother/)**。可直接试用 Voron Cube，或导入自己的 G-code / 切片 3MF。在 3D 视图右上角打开「层时间平滑」即可自动选参，拖动滑块可改为手动。两条曲线对比逐层用时，旁边显示整盘预计增减时间。点击「导出平滑 G-code」保存当前结果。文件在浏览器本地处理。导出按钮旁的菜单支持 Bambu Studio 和 OrcaSlicer，直接唤起桌面应用需先运行并配对菜单中提供的本机助手。
+
 通过调整**稀疏填充和内部实心填充的速度**，让相邻打印层的用时平缓过渡，用于研究 FDM 打印的冷却纹。Bambu Studio 版按盘自动选平滑度，OrcaSlicer 插件提供手动滑块。两者共用同一引擎，只调整模型填充的进给速度，保留首层、外墙与内墙、支撑、材料塔、换料和冲刷动作，无需新增暂停。
 
 **[下载安装包](https://github.com/Alexx-Powered/layer-time-smoother/releases/tag/v0.2.2) · [安装与使用](#安装与使用) · [下载离线交互曲线](https://github.com/Alexx-Powered/layer-time-smoother/releases/download/v0.2.2/layer-time-explorer.html)**

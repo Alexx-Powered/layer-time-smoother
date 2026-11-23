@@ -1,0 +1,43 @@
+name: Publish demo
+on:
+  push:
+    branches: [main]
+    paths: ['demo/**', '.github/workflows/demo-pages.yml', '工具/**', '集成/Bambu/layer_smoothing.pyz']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: demo-pages
+  cancel-in-progress: false
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Build the browser engine and example from the current smoothing scripts
+        env:
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: |
+          node -e "require('./demo/voron-gcode.js'); voronGcodeBytes().then(b => require('node:fs').writeFileSync(process.env.RUNNER_TEMP+'/voron.gcode', b))"
+          python 工具/build_demo_engine.py --example "$RUNNER_TEMP/voron.gcode"
+      - name: Check demo scripts
+        run: |
+          node --check demo/smooth-ui.js
+          node --check demo/smooth-worker.js
+          node --check demo/slicer-open.js
+          test -s demo/index.html && test -s demo/runtime/pyodide.asm.wasm
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: demo
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

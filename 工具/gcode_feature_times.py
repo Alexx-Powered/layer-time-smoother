@@ -134,7 +134,7 @@ def ending_line(lines):
     return len(lines)
 
 
-def estimate(data, *, motion_feed=None, change_events=None, include_ending=False):
+def estimate(data, *, motion_feed=None, change_events=None, include_ending=False, record_motion=None):
     """Optionally inspect or replace the nominal mm/s of each modeled movement."""
     lines = data.decode("utf-8-sig").splitlines()
     if not include_ending:
@@ -404,12 +404,12 @@ def estimate(data, *, motion_feed=None, change_events=None, include_ending=False
             retract_debt = max(0.0, retract_debt - extrusion)
             mode = "retracting" if pure_e else "extruding" if wiping or (xy and extrusion > 0) else "travel"
             nominal = motion_feed(number - 1, layer, bucket, feed, factor, length, extrusion) if motion_feed else feed
-            a, speed = settings[mode], nominal * factor
+            a, speed_limit = settings[mode], math.inf
             if not math.isfinite(a) or a <= 0:
                 raise ValueError(f"Line {number}: missing or invalid {mode} acceleration.")
-            junction = min(speed, blocks[-1].speed) if blocks else 0.0
+            junction_limit = math.inf if blocks else 0.0
             if radius is not None:
-                speed = min(speed, math.sqrt(a * radius) * length / xy)
+                speed_limit = math.sqrt(a * radius) * length / xy
             elif blocks and xy:
                 prev_xy = math.hypot(*previous_direction[:2])
                 cur_xy = math.hypot(*start[:2])
@@ -417,7 +417,7 @@ def estimate(data, *, motion_feed=None, change_events=None, include_ending=False
                     turn = math.hypot(start[0] / cur_xy - previous_direction[0] / prev_xy,
                                       start[1] / cur_xy - previous_direction[1] / prev_xy)
                     if 0.00001 < turn < 0.5:
-                        speed = min(speed, math.sqrt(a * xy / turn))
+                        speed_limit = math.sqrt(a * xy / turn)
             for axis, component in zip("xyze", ratios):
                 if component:
                     try:
@@ -425,17 +425,21 @@ def estimate(data, *, motion_feed=None, change_events=None, include_ending=False
                     except KeyError:
                         raise ValueError(f"Line {number}: missing machine limits for axis {axis}.") from None
                     if vlim > 0:
-                        speed = min(speed, vlim / abs(component))
+                        speed_limit = min(speed_limit, vlim / abs(component))
                     if alim > 0:
                         a = min(a, alim / abs(component))
+            speed = min(nominal * factor, speed_limit)
             if not all(math.isfinite(v) and v > 0 for v in (speed, a)):
                 raise ValueError(f"Line {number}: missing or invalid speed/acceleration.")
             for axis, u, v in zip("xyz", start, previous_direction):
                 if u != v and blocks:
                     if axis not in limits["jerk"]:
                         raise ValueError(f"Line {number}: missing {axis} jerk limit.")
-                    junction = min(junction, limits["jerk"][axis] / abs(u - v))
-            blocks.append(Block(layer, bucket, length, a, speed, min(speed, junction), change))
+                    junction_limit = min(junction_limit, limits["jerk"][axis] / abs(u - v))
+            entry = min(speed, blocks[-1].speed, junction_limit) if blocks else 0.0
+            if record_motion is not None:
+                record_motion(layer, bucket, length, a, feed, factor, speed_limit, junction_limit, not blocks)
+            blocks.append(Block(layer, bucket, length, a, speed, entry, change))
             previous_direction = end
         elif layer >= 0:
             notes[layer].add(cmd)

@@ -356,9 +356,8 @@ def enforce_time_cap(scales, editable, evaluate, result, allowed_extra):
     return best
 
 
-def process(data, strength, reference=None, *, mode="legacy",
-            jump_seconds=DEFAULT_JUMP_SECONDS, jump_percent=DEFAULT_JUMP_PERCENT,
-            preferred_jump=5.0, maximum_jump=8.0, plateau_band=12.0, automatic_report=None):
+def prepare_input(data, reference=None, *, motion_cache=None):
+    """Parse one immutable source. Interactive clients can reuse its motion limits."""
     if MARKER.encode() in data or APPLIED_MARKER.encode() in data:
         raise ValueError("Use the original sliced file as input.")
     moves = {}
@@ -369,7 +368,8 @@ def process(data, strength, reference=None, *, mode="legacy",
         return feed
 
     events = []
-    heights, rows, notes = estimate(data, motion_feed=inspect, change_events=events)
+    heights, rows, notes = estimate(data, motion_feed=inspect, change_events=events,
+                                   record_motion=motion_cache.record if motion_cache else None)
     direct = [r.total() for r in rows]
     baseline = direct.copy()
     if reference:
@@ -380,13 +380,26 @@ def process(data, strength, reference=None, *, mode="legacy",
     editable = [i in eligible_layers and not n for i, n in enumerate(notes)]
 
     def simulate(scales):
+        if motion_cache is not None:
+            return motion_cache.simulate(scales)
         def adjusted(index, layer, role, feed, override, length, extrusion):
             return feed * scales[layer] if index in moves else feed
 
         _, simulated, _ = estimate(data, motion_feed=adjusted)
         return [b + r.total() - d for b, r, d in zip(baseline, simulated, direct)]
 
+    if motion_cache is not None:
+        motion_cache.finish(baseline)
     fastest = simulate([CAP if e else 1.0 for e in editable])
+    return moves, events, heights, rows, notes, direct, baseline, editable, simulate, fastest
+
+
+def process(data, strength, reference=None, *, mode="legacy",
+            jump_seconds=DEFAULT_JUMP_SECONDS, jump_percent=DEFAULT_JUMP_PERCENT,
+            preferred_jump=5.0, maximum_jump=8.0, plateau_band=12.0, automatic_report=None,
+            prepared=None):
+    state = prepared if prepared is not None else prepare_input(data, reference)
+    moves, events, heights, rows, notes, direct, baseline, editable, simulate, fastest = state
     uniform_mode = mode in {"uniform", "plateau"}
     global_mode = uniform_mode or mode in {"auto", "equal", "global", "curve"}
     def plan_uniform(floors):

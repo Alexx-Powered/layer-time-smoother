@@ -32,6 +32,24 @@ def atomic_write(path, data):
         temporary.unlink(missing_ok=True)
 
 
+def smooth_bytes(data, strength=None, *, prepared=None):
+    policy = "auto" if strength is None else f"manual-{strength:g}"
+    stamp = (MARKER + "policy=" + policy + " ").encode()
+    assessment = {} if strength is None else None
+    output, rows = process(data,strength,mode="curve",automatic_report=assessment, prepared=prepared)
+    if assessment is None:
+        message = f"manual smoothness={strength:g}"
+    else:
+        result = assessment["exported"]
+        actual = "original" if result["strength"] is None else str(result["strength"])
+        message = (f"selected={actual} plate_change={result['change_pct']:+.3f}% "
+                   f"jump_rms_s={result['jump_rms_s']:.4f} bend_rms_s={result['bend_rms_s']:.4f}")
+    if output != data:
+        marker = MARKER.encode() + b"strength="
+        output = output.replace(marker,stamp + message.encode("ascii") + b" strength=",1)
+    return output, rows, assessment, message
+
+
 def run_job(path, strength=None, *, destination=None, audit=None, on_preview=None):
     path = Path(path)
     target = Path(destination) if destination else path
@@ -51,18 +69,7 @@ def run_job(path, strength=None, *, destination=None, audit=None, on_preview=Non
         if audit:
             raise ValueError("Use the original G-code to generate a new candidate audit.")
         return "Already applied: " + policy
-    assessment = {} if strength is None else None
-    output, rows = process(data,strength,mode="curve",automatic_report=assessment)
-    if assessment is None:
-        message = f"manual smoothness={strength:g}"
-    else:
-        result = assessment["exported"]
-        actual = "original" if result["strength"] is None else str(result["strength"])
-        message = (f"selected={actual} plate_change={result['change_pct']:+.3f}% "
-                   f"jump_rms_s={result['jump_rms_s']:.4f} bend_rms_s={result['bend_rms_s']:.4f}")
-    if output != data:
-        marker = MARKER.encode() + b"strength="
-        output = output.replace(marker,stamp + message.encode("ascii") + b" strength=",1)
+    output, rows, assessment, message = smooth_bytes(data, strength)
     if audit:
         report = assessment if assessment is not None else {"manual_strength":strength}
         report_bytes = (json.dumps(report,ensure_ascii=False,indent=2,allow_nan=False)+"\n").encode()

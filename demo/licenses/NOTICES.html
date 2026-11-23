@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="zh-CN">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>模型与软件来源 · 冷却层纹演示</title>
+<style>
+  :root { color-scheme: dark; }
+  body { margin: auto; padding: 2rem 1.25rem 4rem; max-width: 47rem; background: #151412; color: #eee8de; font: 1rem/1.65 system-ui, sans-serif; }
+  a { color: #ffc27a; text-underline-offset: .19em; }
+  h1 { font-size: 1.9rem; }
+  h2 { margin-top: 2.2rem; font-size: 1.25rem; }
+  ul { padding-inline-start: 1.35rem; }
+</style>
+<main>
+  <a href="../index.html">返回演示</a>
+  <h1>模型与软件来源</h1>
+  <h2>Voron Design Calibration Cube v8</h2>
+  <p>模型作者为 Voron Design。演示使用「煤球」分享的打印配置为基础，在 Bambu Studio 生成 150 层、面向 Bambu Lab P2S 的 PETG 示例。示例中保存了真实切片指令，并对本地耗材预设的显示名称作了通用化处理。</p>
+  <ul>
+    <li><a href="https://www.printables.com/model/758730-voron-design-calibration-cube">Voron Design 发布页</a> · <a href="https://github.com/VoronDesign/Voron-Extras/tree/15dedd6ac4ae081d4275edad94da8755d94a1dfe/Test_Prints">官方 STEP 和 STL 源文件</a></li>
+    <li><a href="Voron-GPL-3.0.txt">GNU General Public License v3.0</a> · <a href="Voron_Design_Cube_v8.STEP" download>下载原始 STEP 文件</a></li>
+  </ul>
+  <h2>喷嘴指示器</h2>
+  <p>预览使用 OrcaSlicer 2.5.1 的 BBL 热端网格，在视图中调整了朝向、尺寸和颜色。</p>
+  <ul>
+    <li><a href="https://github.com/OrcaSlicer/OrcaSlicer/blob/v2.5.1/resources/profiles/BBL/bbl-3dp-hotend.stl">OrcaSlicer 发布的 BBL 热端</a> · <a href="https://github.com/bambulab/BambuStudio/blob/master/resources/profiles/BBL/bbl-3dp-hotend.stl">Bambu Studio 的相应模型</a></li>
+    <li><a href="Orca-AGPL-3.0.txt">GNU Affero General Public License v3.0</a> · <a href="bbl-3dp-hotend.stl" download>下载预览所用的原始 STL 文件</a></li>
+  </ul>
+  <h2>渲染与切片文件读取</h2>
+  <ul>
+    <li>Three.js r187，© 2010–2026 three.js authors。<a href="https://github.com/mrdoob/three.js/tree/r187">项目源码</a> · <a href="three-MIT.txt">MIT 许可</a></li>
+    <li>fflate 0.8.3，© 2026 Arjun Barrett。<a href="https://github.com/101arrowz/fflate">项目源码</a> · <a href="fflate-MIT.txt">MIT 许可</a></li>
+  </ul>
+  <h2>浏览器内的平滑计算</h2>
+  <ul>
+    <li>Pyodide 0.27.7 在浏览器中运行本项目的 Python 平滑脚本。<a href="https://github.com/pyodide/pyodide/tree/0.27.7">项目源码</a> · <a href="../runtime/LICENSE">Mozilla Public License 2.0</a></li>
+    <li>该运行时包含 CPython 3.12.7，使用 Emscripten 3.1.58 构建。<a href="Python-LICENSE.txt">Python 许可</a> · <a href="Emscripten-LICENSE.txt">Emscripten 许可</a></li>
+  </ul>
+</main>
+</html>
