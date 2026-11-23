@@ -163,8 +163,41 @@ function checkLastLayer(code,heights,seconds,retime=false){
   return Math.abs(api.bandReading(real.wallPairs[last][0],lower.displacement,net.displacement).step);
 }
 
+function checkPlateToolChanges(){
+  const config=['; filament_nozzle_map = 0,0','; machine_load_filament_time = 26',
+    '; machine_unload_filament_time = 31','; machine_max_speed_e = 30',';VT0','G90','M83'];
+  function wall(object,x){
+    return ['; start printing object, unique label id: '+object,'; FEATURE: Outer wall',
+      'G0 X'+x+' F600','G1 X'+(x+5)+' E1 F300','; stop printing object'];
+  }
+  const swap=['; CP TOOLCHANGE START','M620 S1A','T1',';VG1 E4 F240','; VFLUSH_START',
+    ';VG1 E8 F240','SYNC T10','; VFLUSH_END','M622 J1','SYNC T90','T0',';VG1 E50 F60',
+    'M623','M621 S1A','; CP TOOLCHANGE END'];
+  const heights=[.2,.4,.6],seconds=[15,110,20];
+  const code=[...config,...heights.flatMap((z,i)=>['; CHANGE_LAYER','; Z_HEIGHT: '+z,'G0 Z'+z+' F600',
+    ...(i<2?wall(1,0):[]),...(i===1?swap:[]),...wall(2,12)])].join('\n');
+  const read=(id,input=code)=>api.prepare(api.parseGcode(input,'two parts',id,{},0,{heights,seconds}));
+  const a=read('1'),b=read('2');
+  assert.deepEqual(a.changes,{count:1,load:26,unload:31,swap:0,prime:1,purge:2,sync:10,incomplete:false});
+  assert.deepEqual(b.changes,a.changes);
+  assert(a.layerTiming&&b.layerTiming);
+  assert.deepEqual(b.duration,seconds);
+  assert.equal(a.total,b.total);
+  assert.equal(a.lastPeriod,110,'A shorter part must not inherit the rest of the plate as its last cooling period');
+  for(const model of [a,b]){
+    // Calibration stretches movement, but the stops must remain 31, 26, 1, 2 and 10 seconds.
+    const waits=[];
+    for(let k=0;k<model.motion.length;k+=9)if(model.motion[k+8]===2)waits.push(model.motion[k+1]-model.motion[k]);
+    assert.deepEqual(waits.map(t=>Math.round(1000*t)/1000),[31,26,1,2,10]);
+  }
+  const ha=api.layerHeatHistory(a,identity,material),hb=api.layerHeatHistory(b,identity,material);
+  assert(hb[0].span-ha[0].span>70,'Only the second object crosses the swap before its next wall');
+  assert.equal(api.layerHeatHistory(b,identity,material,false)[0].span,seconds[0]);
+  assert(read('2',code.replace('; machine_load_filament_time = 26','')).changes.incomplete);
+}
+
 async function run(){
-  checkBridge();checkDeckPost();checkEqualLayerClock();
+  checkBridge();checkDeckPost();checkEqualLayerClock();checkPlateToolChanges();
   require(path.join(demo,'smooth-example.js'));require(path.join(demo,'voron-gcode.js'));
   const code=Buffer.from(await voronGcodeBytes()).toString('utf8');
   const {before,heights}=layerSmoothingExample.result;

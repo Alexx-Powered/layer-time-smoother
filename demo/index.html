@@ -1043,7 +1043,7 @@ function buildThermalContacts(d){
   for(const plane of sorted){match(plane.top,plane.bottom,false);match(plane.bottom,plane.top,true)}
   // Match a repeat of the terminal pass only against the real top surface.
   // Keep measured contacts and the entire toolpath/print clock untouched.
-  const last=d.z.length-1,topZ=d.z[last],surface=planeAt(topZ),period=d.duration[last];
+  const last=d.z.length-1,topZ=d.z[last],surface=planeAt(topZ),period=d.lastPeriod??d.duration[last];
   const rise=last?topZ-d.z[last-1]:(topZ>1.5?.2:topZ);
   const repeat=surface.top.filter(p=>Math.abs(p.h-rise)<=.015)
     .map(p=>({...p,origin:p.origin+period,repeated:true}));
@@ -1079,7 +1079,7 @@ function pairTemperatures(lower,upper,lowerShare,contact,age,p){
   const exchanged=-Math.expm1(-2*(p.reheat/100)*contact*age/p.tau);
   return [air*(lower+exchanged*(mean-lower)),air*(upper+exchanged*(mean-upper))];
 }
-function layerHeatHistory(model,map,p){
+function layerHeatHistory(model,map,p,useWallClock=true){
   const hot=p.hot-p.air;
   let remaining=0;
   const frozen=new Map();
@@ -1089,7 +1089,9 @@ function layerHeatHistory(model,map,p){
   }
   const placements=[[0,0,0]];
   const history=model.layers.map((paths,i)=>{
-    const end=map(model.starts[i]+model.duration[i]),span=end-map(model.starts[i]);
+    // In a colour job the next outer wall can fall on either side of the tool change.
+    const wall=useWallClock&&model.wallClock;
+    const span=wall?map(wall[i+1])-map(wall[i]):map(model.starts[i]+model.duration[i])-map(model.starts[i]);
     const height=model.thickness[i],below=model.thickness[Math.max(0,i-1)];
     const lowerShare=below/(below+height),above=model.thickness[i+1]||height;
     const layer={span,remaining,lowerShare,placements,ownShare:height/(height+above),
@@ -1387,6 +1389,63 @@ function sliceAppearance(contents,plate={}){
   const first=Number.isInteger(plate.first_extruder)&&plate.first_extruder>=0&&plate.first_extruder<255?plate.first_extruder:Math.max(0,colors.findIndex(Boolean));
   return {colors,first,bed};
 }
+// Mirror the supported single-nozzle and resident dual-nozzle timing in gcode_feature_times.py.
+function changeTimingProfile(contents){
+  const config=contents.slice(0,262144);
+  function setting(key){
+    return new RegExp('^;\\s*'+key+'\\s*=\\s*([^\\r\\n]+)','im').exec(config)?.[1].trim();
+  }
+  function number(key,fallback){
+    const text=setting(key),v=text===undefined?NaN:Number(text.split(/[,;]/)[0]);
+    return Number.isFinite(v)&&v>=0?v:fallback;
+  }
+  const nozzles=setting('filament_nozzle_map')?.split(/[,;]/).map(Number)||[];
+  const single=nozzles.length>1&&nozzles.every(n=>n===nozzles[0]&&Number.isInteger(n)&&n>=0);
+  const dual=setting('printer_model')==='Bambu Lab H2D'&&nozzles.length===2&&new Set(nozzles).size===2;
+  return {single,dual,nozzles,load:number('machine_load_filament_time',null),
+    unload:number('machine_unload_filament_time',null),swap:number('machine_switch_extruder_time',null),
+    maxFeed:number('machine_max_speed_e',Infinity)||Infinity,maxAccel:number('machine_max_acceleration_e',Infinity)||Infinity,
+    retractAccel:number('machine_max_acceleration_retracting',Infinity)||Infinity};
+}
+// Calibrate moving time against the slicer's totals while leaving explicit waits at their original positions.
+function plateTimeMap(layers,end,holds,reported,layerTimes){
+  const fixed=layers.map(()=>0);
+  let index=0;
+  for(const h of holds){
+    while(index+1<layers.length&&layers[index+1].start<=h.start)index++;
+    fixed[index]+=h.end-h.start;
+  }
+  const aligned=layerTimes?.seconds.length===layers.length&&layerTimes.heights.length===layers.length&&
+    layers.every((l,i)=>Number.isFinite(l.z)&&Math.abs(l.z-layerTimes.heights[i])<.012&&
+      Number.isFinite(layerTimes.seconds[i])&&layerTimes.seconds[i]>fixed[i]);
+  const fixedTotal=fixed.reduce((a,b)=>a+b,0);
+  const ratio=reported>fixedTotal&&end>fixedTotal?(reported-fixedTotal)/(end-fixedTotal):1;
+  if(!aligned&&!holds.length)return {aligned:false,at:t=>t*ratio};
+  const edges=[],mapped=[],rates=[];
+  let target=0,h=0;
+  function segment(a,b,slope){
+    if(b<=a)return;
+    edges.push(a);mapped.push(target);rates.push(slope);target+=(b-a)*slope;
+  }
+  for(const [i,l] of layers.entries()){
+    let start=l.start;
+    const stop=layers[i+1]?.start??end,moving=stop-start-fixed[i];
+    const slope=aligned&&moving>1e-8?(layerTimes.seconds[i]-fixed[i])/moving:ratio;
+    while(h<holds.length&&holds[h].start<stop){
+      const hold=holds[h++];segment(start,hold.start,slope);segment(hold.start,hold.end,1);start=hold.end;
+    }
+    segment(start,stop,slope);
+  }
+  let at=0;
+  return {aligned:!!aligned,at(t){
+    if(t<edges[at]||t>=(edges[at+1]??Infinity)){
+      let lo=0,hi=edges.length;
+      while(lo+1<hi){const m=(lo+hi)>>>1;if(edges[m]<=t)lo=m;else hi=m}
+      at=lo;
+    }
+    return mapped[at]+(t-edges[at])*rates[at];
+  }};
+}
 function parseGcode(contents,name,chosenObject,plate,estimatedDuration,layerTimes){
   if(contents.includes('\0'))throw Error('文件是二进制格式。请从切片软件导出文本 G-code。');
   const appearance=sliceAppearance(contents,plate);
@@ -1399,7 +1458,10 @@ function parseGcode(contents,name,chosenObject,plate,estimatedDuration,layerTime
   const objectIds=[...new Set(Array.from(contents.matchAll(new RegExp(objectMark.source,'gim')),m=>m[1]))];
   const objectId=objectIds.length>1?(objectIds.includes(chosenObject)?chosenObject:objectIds[0]):null;
   let currentObject=null,rank=0,conditional=0;
-  const sections=new Set();
+  const sections=new Set(),plateLayers=[],holds=[],profile=changeTimingProfile(contents);
+  const changes={count:0,load:0,unload:0,swap:0,prime:0,purge:0,sync:0,incomplete:false};
+  let physicalTool=filament,retractAccel=profile.retractAccel;
+  const loaded=new Set();
   let x=0,y=0,z=0,e=0,abs=true,eRelative=false,unit=1,feed=30,speed=1,debt=0;
   let clock=0,active=!marked,role='',width=.42,nominal=null,waiting=true,layer=null,kept=0,markStart=0,stop=false;
   let wasCut=false,plane=17,centerAbs=false,height=0;
@@ -1412,11 +1474,34 @@ function parseGcode(contents,name,chosenObject,plate,estimatedDuration,layerTime
     if(second!==epoch){epoch=second;epochs.push(totalWords/9,epoch)}
     trace.set([a-epoch,b-epoch,x0,y0,z0,x1,y1,z1,kind],used);used+=9;totalWords+=9;
   }
+  function wait(seconds,bucket){
+    if(!active||!(seconds>0)||!Number.isFinite(seconds))return;
+    if(bucket)changes[bucket]+=seconds;
+    holds.push({start:clock,end:clock+seconds});
+    record(clock,clock+seconds,x,y,z,x,y,z,2);clock+=seconds;wasCut=true;
+  }
+  function selectTool(tool){
+    if(!(Number.isInteger(tool)&&tool>=0&&tool<255))return;
+    if(active&&tool!==physicalTool&&sections.has('CP TOOLCHANGE')){
+      changes.count++;
+      const known=profile.nozzles[tool]!==undefined&&profile.nozzles[physicalTool]!==undefined;
+      if(known&&profile.single){
+        wait(profile.unload,'unload');wait(profile.load,'load');
+        if(profile.unload===null||profile.load===null)changes.incomplete=true;
+      }else if(known&&profile.dual){
+        wait(profile.swap,'swap');
+        if(!loaded.has(tool))wait(profile.load,'load');
+        if(profile.swap===null||(!loaded.has(tool)&&profile.load===null))changes.incomplete=true;
+      }else changes.incomplete=true;
+    }
+    loaded.add(tool);physicalTool=tool;
+    if(filament!==tool){filament=tool;wasCut=true}
+  }
   const layers=[];
   function openLayer(h){
     if(!Number.isFinite(h)||h<=0||h>5000)throw Error('无法辨认有效的逐层高度，请使用平面分层 G-code。');
     if(layer && h<layer.z-.012)throw Error('检测到高度重新从低处开始，请按层打印或单独导出一个物件。');
-    if(!layer||h>layer.z+.012){layer={z:h,start:waiting?markStart:clock,paths:[],last:0};layers.push(layer)}
+    if(!layer||h>layer.z+.012){layer={z:h,start:waiting?markStart:clock,plateIndex:plateLayers.length-1,paths:[],last:0};layers.push(layer)}
     waiting=false;
   }
   let cursor=0;
@@ -1424,13 +1509,28 @@ function parseGcode(contents,name,chosenObject,plate,estimatedDuration,layerTime
     const end=contents.indexOf('\n',cursor), raw=contents.slice(cursor,end<0?undefined:end).trim();
     cursor=end<0?contents.length:end+1;
     if(!raw)continue;
+    if(active&&!conditional&&sections.has('CP TOOLCHANGE')){
+      const aux=raw.startsWith(';')?raw.slice(1).trimStart():raw;
+      if(/^SYNC\s/i.test(raw)){
+        const t=/\bT\s*([\d.]+)/i.exec(aux);if(t)wait(+t[1],'sync');continue;
+      }
+      if(!profile.dual&&/^VG1\s/i.test(aux)){
+        const words=aux.split(';',1)[0],e=/\bE\s*([-+\d.]+)/i.exec(words),f=/\bF\s*([\d.]+)/i.exec(words);
+        if(e&&f&&eRelative&&!/\b[XYZ]\s*[-+\d.]/i.test(words)){
+          const length=Math.abs(+e[1])*unit,accel=Math.min(profile.maxAccel,retractAccel);
+          const peak=Math.min(+f[1]*unit/60,profile.maxFeed,Math.sqrt(length*accel));
+          if(length&&peak>0)wait(length/peak+peak/accel,sections.has('VFLUSH')?'purge':'prime');
+        }else changes.incomplete=true;
+        continue;
+      }
+    }
     if(raw.startsWith(';')){
       const virtual=/^;\s*VT(\d+)\b/i.exec(raw);
-      if(virtual&&!conditional&&+virtual[1]<255&&filament!==+virtual[1]){filament=+virtual[1];wasCut=true}
+      if(virtual&&!conditional)selectTool(+virtual[1]);
 
       if(/^;\s*(?:MACHINE_END_GCODE_START|EXECUTABLE_BLOCK_END)/i.test(raw)){stop=true;continue}
-      if(layerMark.test(raw)){active=true;waiting=true;nominal=null;rank=0;role='';markStart=clock;wasCut=true;continue}
-      const zm=/^;\s*(?:Z_HEIGHT|Z):\s*([\d.]+)/i.exec(raw);if(zm){nominal=+zm[1];continue}
+      if(layerMark.test(raw)){active=true;waiting=true;nominal=null;rank=0;role='';markStart=clock;plateLayers.push({start:clock,z:null});wasCut=true;continue}
+      const zm=/^;\s*(?:Z_HEIGHT|Z):\s*([\d.]+)/i.exec(raw);if(zm){nominal=+zm[1];if(plateLayers.length)plateLayers.at(-1).z??=nominal;continue}
       const hm=/^;\s*(?:LAYER_HEIGHT|HEIGHT):\s*([\d.]+)/i.exec(raw);
       if(hm){height=+hm[1];continue}
       const object=objectMark.exec(raw);
@@ -1451,18 +1551,17 @@ function parseGcode(contents,name,chosenObject,plate,estimatedDuration,layerTime
     if(cmd==='M623'){conditional=Math.max(0,conditional-1);continue}
     if(conditional)continue;
     const selectedTool=m[1].toUpperCase()==='T'?Number(m[2]):cmd==='M621'?Number(/\bS(\d+)A\b/i.exec(code)?.[1]):NaN;
-    if(Number.isInteger(selectedTool)&&selectedTool>=0&&selectedTool<255&&selectedTool!==filament){filament=selectedTool;wasCut=true}
+    if(Number.isFinite(selectedTool))selectTool(selectedTool);
     if(cmd==='M82'){eRelative=false;continue}if(cmd==='M83'){eRelative=true;continue}
     if(cmd==='G90'||cmd==='G91'){abs=cmd==='G90';eRelative=!abs;continue}
     if(cmd==='G20'||cmd==='G21'){unit=cmd==='G20'?25.4:1;continue}
     if(['G17','G18','G19'].includes(cmd)){plane=Number(cmd.slice(1));continue}
     if(cmd==='G90.1'||cmd==='G91.1'){centerAbs=cmd==='G90.1';continue}
-    if(!['G0','G1','G2','G3','G92','G4','M400','M220'].includes(cmd))continue;
+    if(!['G0','G1','G2','G3','G92','G4','M400','M204','M220'].includes(cmd))continue;
     const w={}; for(const v of code.slice(m[0].length).matchAll(/([A-Za-z])\s*([-+]?(?:\d+(?:\.\d*)?|\.\d+))/g))w[v[1].toUpperCase()]=+v[2];
     if(cmd==='M220'){if(w.S>0)speed=w.S/100;continue}
-    if(cmd==='G4'||cmd==='M400'){if(active){
-      const delay=Math.max(0,w.S??(w.P||0)/1000);record(clock,clock+delay,x,y,z,x,y,z,2);clock+=delay;if(delay)wasCut=true;
-    }continue}
+    if(cmd==='M204'){const a=w.S===undefined?w.R:w.T;if(a>0)retractAccel=a;continue}
+    if(cmd==='G4'||cmd==='M400'){wait(w.S??(w.P||0)/1000);continue}
     for(const k of ['X','Y','Z','E','I','J','R','F'])if(w[k]!==undefined)w[k]*=unit;
     if(cmd==='G92'){x=w.X??x;y=w.Y??y;z=w.Z??z;e=w.E??e;continue}
     if(w.F>0)feed=w.F/60;
@@ -1476,6 +1575,7 @@ function parseGcode(contents,name,chosenObject,plate,estimatedDuration,layerTime
     let dist=0,px=x,py=y;for(const [ax,ay] of pts){dist+=Math.hypot(ax-px,ay-py);px=ax;py=ay}
     const seconds=(Math.hypot(dist,nz-z)||Math.abs(de))/Math.max(.01,feed*speed);
     const onObject=active&&printable&&!sections.size&&!helperRole.test(role)&&(!objectId||currentObject===objectId);
+    if(plateLayers.length&&plateLayers.at(-1).z===null&&printable&&!sections.size&&!helperRole.test(role))plateLayers.at(-1).z=nz;
     if(onObject){
       if(Math.abs(nz-z)>.015 && (!marked||waiting===false))throw Error('检测到连续变化的挤出高度。请导出按平面分层的 G-code。');
       openLayer(marked?(nominal??nz):nz);
@@ -1537,37 +1637,39 @@ function parseGcode(contents,name,chosenObject,plate,estimatedDuration,layerTime
   const endTime=Math.max(visible.at(-1).last,visible.at(-1).start+.001,clock);
   const header=/^;\s*model printing time:\s*((?:\d+\s*[dhms]\s*)+)/im.exec(contents.slice(0,32768));
   const reported=estimatedDuration>0?estimatedDuration:header?[...header[1].matchAll(/(\d+)\s*([dhms])/ig)].reduce((a,m)=>a+(+m[1])*({d:86400,h:3600,m:60,s:1}[m[2].toLowerCase()]),0):0;
-  const ratio=reported>0?reported/Math.max(.001,endTime-base):1;
-  // The solver measures each layer after serializing the adjusted feed rates.
-  // The G-code order and feed determine the relative times inside that layer.
-  const aligned=layerTimes?.seconds.length===visible.length&&layerTimes.heights.length===visible.length&&
-    visible.every((l,i)=>Math.abs(l.z-layerTimes.heights[i])<.012&&Number.isFinite(layerTimes.seconds[i])&&layerTimes.seconds[i]>0);
-  let elapsed=0;
-  const starts=[],slopes=[],durations=visible.map((l,i)=>{
-    const span=Math.max(.000001,(visible[i+1]?.start??endTime)-l.start);
-    const duration=aligned?layerTimes.seconds[i]:Math.max(.001,span*ratio);
-    starts.push(elapsed);slopes.push(duration/span);elapsed+=duration;return duration;
+  const clockLayers=plateLayers.length?plateLayers:visible;
+  const {aligned,at:timeAtMove}=plateTimeMap(clockLayers,endTime,holds,reported,layerTimes);
+  const starts=visible.map(l=>timeAtMove(l.start));
+  const durations=visible.map((l,i)=>{
+    const stop=visible[i+1]?.start??endTime,k=plateLayers.length?l.plateIndex:i;
+    if(aligned&&l.start===clockLayers[k].start&&stop===(clockLayers[k+1]?.start??endTime))return layerTimes.seconds[k];
+    return Math.max(.001,timeAtMove(stop)-starts[i]);
   });
-  function timeAtMove(t){
-    if(!aligned)return t*ratio;
-    let low=0,high=visible.length;
-    while(low+1<high){const mid=(low+high)>>>1;if(visible[mid].start<=t)low=mid;else high=mid}
-    return starts[low]+(t-visible[low].start)*slopes[low];
-  }
+  const wallClock=[];
   // One transferable buffer per layer keeps million-segment files practical.
   for(const [i,l] of visible.entries()){
     visit[i]=timeAtMove(visit[i]);
     const points=l.paths.reduce((sum,p)=>sum+p.times.length,0),packed=new Float32Array(points*3);
-    let off=0;
+    let off=0,wallLength=0,wallTime=0;
+    const wallRank=changes.count?l.paths.reduce((r,p)=>Math.max(r,p.rank),0):-1;
     for(const p of l.paths){
       const n=p.times.length,xy=packed.subarray(2*off,2*(off+n)),times=packed.subarray(2*points+off,2*points+off+n);
       for(let j=0;j<n;j++){
         xy[2*j]=p.xy[2*j]-cx;xy[2*j+1]=p.xy[2*j+1]-cy;
-        times[j]=(p.times[j]-l.start)*slopes[i];
+        times[j]=timeAtMove(p.times[j])-starts[i];
+        if(j&&p.rank===wallRank){
+          const length=Math.hypot(xy[2*j]-xy[2*j-2],xy[2*j+1]-xy[2*j-1]);
+          wallLength+=length;wallTime+=length*(times[j-1]+times[j])*.5;
+        }
       }
       p.xy=xy;p.times=times;off+=n;
     }
+    if(changes.count)wallClock.push(starts[i]+(wallLength?wallTime/wallLength:durations[i]/2));
   }
+  // The last real slice uses one repeat of its own plate period, including on a shorter object.
+  const lastLayer=visible.at(-1),lastMark=plateLayers[lastLayer.plateIndex];
+  const lastPeriod=lastMark&&aligned?layerTimes.seconds[lastLayer.plateIndex]:lastMark?timeAtMove(plateLayers[lastLayer.plateIndex+1]?.start??endTime)-timeAtMove(lastMark.start):durations.at(-1);
+  if(changes.count)wallClock.push(wallClock.at(-1)+lastPeriod);
   const motion=new Float32Array(totalWords);let out=0,epochIndex=0;
   for(const [i,chunk] of traceChunks.entries()){
     const n=i+1===traceChunks.length?used:chunk.length;
@@ -1588,7 +1690,7 @@ function parseGcode(contents,name,chosenObject,plate,estimatedDuration,layerTime
   });
   for(const p of nearby)for(let j=0;j<p.times.length;j++){p.xy[2*j]-=cx;p.xy[2*j+1]-=cy;p.times[j]=timeAtMove(p.times[j])}
   for(let i=1;i<epochs.length;i+=2)epochs[i]=timeAtMove(epochs[i]);
-  return {name,motion,motionEpochs:Float64Array.from(epochs),filamentColors:appearance.colors,bed:appearance.bed.map(([x,y])=>[x-cx,y-cy]),supports:nearby,z:visible.map(l=>l.z),duration:durations,visit,interval:visit.slice(1).map((t,i)=>Math.max(0,t-visit[i])),layers:visible.map(l=>l.paths),size:[span,depth,visible.at(-1).z],hits,layerTiming:!!aligned,normalized:reported>0,probeError:offsets.reduce((a,b)=>Math.max(a,b),0),objectIds,objectId,imported:true};
+  return {name,motion,wallClock:wallClock.length?wallClock:null,lastPeriod,changes,motionEpochs:Float64Array.from(epochs),filamentColors:appearance.colors,bed:appearance.bed.map(([x,y])=>[x-cx,y-cy]),supports:nearby,z:visible.map(l=>l.z),duration:durations,visit,interval:visit.slice(1).map((t,i)=>Math.max(0,t-visit[i])),layers:visible.map(l=>l.paths),size:[span,depth,visible.at(-1).z],hits,layerTiming:!!aligned,normalized:reported>0,probeError:offsets.reduce((a,b)=>Math.max(a,b),0),objectIds,objectId,imported:true};
 }
 self.onmessage=async ({data})=>{
  try{
@@ -6479,7 +6581,7 @@ function refreshSamples(){
   settled=[];data.shrinkRadius=0;data.mechanics=[];
   data.thermalKey=null;data.thermalSettled=null;
   if(!canSimulate())return;
-  const heat=layerHeatHistory(data,simTime,params);
+  const heat=layerHeatHistory(data,simTime,params,scenario==='raw');
   for(const [i,paths] of data.layers.entries()){
     for(const p of paths){
       p.mapped??=new Float32Array(p.times.length*5);
@@ -6857,6 +6959,7 @@ function updateFileInfo(){
  const source=data!==originalModel&&data!==referenceModel?'平滑后的走线':data.imported?'本地文件':'内置 Voron 示例';
  const timing=data.layerTiming?'按逐层用时校准':!data.imported||data.sameDemo?'运动规划估时':data.normalized?'按切片总时长校准':'按指令进给估时';
  $('fileInfo').textContent=source+' · '+displayed.sourceCount.toLocaleString('zh-CN')+' 段'+(displayed===data?'模型走线':'墙走线')+' · '+timing+
+   (data.changes?.count?' · 整盘换料 '+data.changes.count+' 次'+(data.changes.incomplete?'（部分换料用时未知）':''):'')+
    (data.usedFilaments.some(id=>!data.filamentColors[id])?' · 未标注的耗材以灰色显示':'')+(!data.walls?' · 无可识别墙标签':'');
 }
 $('scope').onchange=()=>{
@@ -6864,7 +6967,7 @@ $('scope').onchange=()=>{
  viewport.setModel(next,true);displayed=next;updateFileInfo();frame();
 };
 function setScenarioNote(){
- $('scenarioNote').textContent=scenario==='raw'?'使用当前文件中每一层的完整用时。':scenario==='equal'?'将每一层的完整用时设为 '+fmt(mean)+' 秒，层内先后次序保留。':'各层按相同用时对比，第 '+(delayLayer+1)+' 层额外延长 12 秒。';
+ $('scenarioNote').textContent=scenario==='raw'?(data.wallClock?'按整盘走线计时。换料时，取本件相邻两层外墙的平均铺线时刻之差估算冷却间隔。':'使用当前文件中每一层的完整用时。'):scenario==='equal'?'将每一层的完整用时设为 '+fmt(mean)+' 秒，层内先后次序保留。':'各层按相同用时对比，第 '+(delayLayer+1)+' 层额外延长 12 秒。';
 }
 $('scenario').onchange=()=>{pause();scenario=$('scenario').value;delayLayer=clamp(selected,0,data.z.length-1);
  if(scenario==='delay')selected=delayLayer;
@@ -6925,7 +7028,7 @@ function readFile(file,plate,objectId){
    pendingFile=null;
    if(result.error){announceStatus(result.error);return}
    try{const m=result.sameDemo?{...demo,filamentColors:result.filamentColors||demo.filamentColors,name:result.sameDemo,imported:true,sameDemo:true}:prepare(result.model);
-     if(result.sameDemo&&m.walls)m.walls={...m.walls,filamentColors:m.filamentColors};install(m);const sourceBlob=result.sourceFile;setSmoothSource(m,()=>sourceBlob,nameForExport(file.name,plate||m.name),result.plateInfo,file,plate);loadedFile=file;loadedPlate=plate;announceStatus(m.objectId?'这盘有 '+m.objectIds.length+' 个物件，可在「分析物件」中切换。等待时间包含同盘其他物件的打印。':'已载入 '+file.name+'。')}
+     if(result.sameDemo&&m.walls)m.walls={...m.walls,filamentColors:m.filamentColors};install(m);const sourceBlob=result.sourceFile;setSmoothSource(m,()=>sourceBlob,nameForExport(file.name,plate||m.name),result.plateInfo,file,plate);loadedFile=file;loadedPlate=plate;announceStatus(m.objectId?'这盘有 '+m.objectIds.length+' 个物件，可在「分析物件」中切换。冷却按整盘时间计算，切换物件只改变观察对象。':'已载入 '+file.name+'。')}
    catch(err){announceStatus('模型暂时无法显示。'+err.message)}
  };
  job.onerror=e=>{if(token!==loadToken)return;finish();pendingFile=null;announceStatus('读取失败。'+(e.message||'请检查是否为文本 G-code 或切片 3MF。'))};
