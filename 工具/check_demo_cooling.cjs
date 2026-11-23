@@ -7,7 +7,7 @@ const html=fs.readFileSync(path.join(demo,'index.html'),'utf8');
 const script=id=>html.match(new RegExp('<script[^>]*id="'+id+'"[^>]*>([\\s\\S]*?)</script>'))[1];
 const prepare=html.slice(html.indexOf('function prepare(d){'),html.indexOf('const definitions='));
 const api=new Function(script('thermalCore')+'\n'+script('reader').split('self.onmessage=')[0]+'\n'+prepare+
-  '\nreturn {parseGcode,prepare,presets,mappedSample,prepareLayerPreview,layerHeatHistory,solveRoadMechanics,probeNormals}')();
+  '\nreturn {parseGcode,prepare,presets,mappedSample,prepareLayerPreview,layerHeatHistory,solveRoadMechanics,mechanicsTime,bandReading,probeNormals}')();
 const identity=t=>t, material=api.presets.petg;
 
 function plate(code,seconds,heights){
@@ -30,7 +30,7 @@ function profile(model){
 }
 function sameWallSteps(rows){
   const steps=[];
-  // Compare wall coordinates within 10 microns. Exclude bed/startup and free top.
+  // Compare wall coordinates within 10 microns. Exclude the bed/startup and the end boundary; the latter is checked separately.
   for(let i=3;i<rows.length-1;i++)for(let side=0;side<4;side++){
     const a=rows[i-1][side],b=rows[i][side];
     if(Math.hypot(b.xy[0]-a.xy[0],b.xy[1]-a.xy[1])<.01)steps.push(Math.abs(b.um-a.um));
@@ -108,11 +108,76 @@ function checkEqualLayerClock(){
   }
 }
 
+// Compare the last real layer against the same slice followed by a literal copy
+// of its decoded G-code roads. The extra reference slice is test-only.
+function checkLastLayer(code,heights,seconds,retime=false){
+  const decode=()=>api.parseGcode(code,'terminal test',null,{},0,{heights,seconds});
+  const physical=decode(),explicit=decode(),last=heights.length-1;
+  const rise=last?heights[last]-heights[last-1]:heights[0];
+  explicit.layers.push(explicit.layers[last].map(p=>({...p})));
+  explicit.z.push(heights[last]+rise);explicit.duration.push(seconds[last]);
+  const real=api.prepare(physical),reference=api.prepare(explicit);
+  assert.deepEqual(real.z,heights);
+  assert.deepEqual(real.duration,seconds);
+  assert.equal(real.total,seconds.reduce((a,b)=>a+b,0));
+  assert.equal(real.counts[last],reference.counts[last]);
+  const start=real.starts[last],end=start+seconds[last];
+  const map=retime?t=>t<=start?t:t<=end?start+(t-start)*.55:start+(end-start)*.55+(t-end):identity;
+  // On an explicit next layer, the counterfactual clock repeats the retimed pass.
+  const nextMap=t=>t<=end?map(t):map(end)+map(start+(t-end))-map(start);
+  function solve(m,i,map){
+    const heat=api.layerHeatHistory(m,map,material);
+    const paths=m.layers[i];
+    for(const road of paths){
+      road.mapped=new Float32Array(5*road.times.length);
+      for(let j=0;j<road.times.length;j++)api.mappedSample(road,j,map,material,road.mapped,j*5);
+    }
+    return api.prepareLayerPreview(paths,m.islands[i],heat[i],material,map);
+  }
+  const net=solve(real,last,map),expected=solve(reference,last,nextMap);
+  assert(real.layers[last].every(p=>p.contact.every((v,k)=>k%4!==3||v===0)));
+  for(const [i,road] of real.layers[last].entries()){
+    const ref=reference.layers[last][i];
+    for(let j=0;j<road.times.length;j++){
+      const k=5*j;
+      assert(Math.abs(road.mapped[k+1]-ref.mapped[k+1])<.002 ||
+        road.mapped[k+1]===ref.mapped[k+1],'Local contact time must match the first covering road');
+      assert(Math.abs(road.mapped[k+3]-ref.mapped[k+3])<1e-5);
+    }
+  }
+  assert.equal(net.curve.final,expected.curve.final);
+  const lastBirth=real.layers[last].reduce((t,p)=>Math.max(t,p.mapped[5*(p.times.length-1)]),0);
+  assert.equal(net.playbackEnd,lastBirth+12*Math.max(material.tau,material.weldTime));
+  assert.equal(api.mechanicsTime(net,lastBirth),lastBirth);
+  assert.equal(api.mechanicsTime(net,net.playbackEnd),Infinity);
+  const mid=(lastBirth+net.playbackEnd)/2;
+  assert(Math.abs(api.mechanicsTime(net,mid)-(lastBirth+net.settled)/2)<1e-6);
+  for(const t of [map(end)-.1,map(end)+2,Infinity]){
+    api.solveRoadMechanics(real.layers[last],net,t,material);
+    api.solveRoadMechanics(reference.layers[last],expected,t,material);
+    for(let k=0;k<net.displacement.length;k++)assert(Math.abs(net.displacement[k]-expected.displacement[k])<1e-6);
+  }
+  if(last<2)return;
+  const lower=solve(real,last-1,map);
+  api.solveRoadMechanics(real.layers[last-1],lower,Infinity,material);
+  return Math.abs(api.bandReading(real.wallPairs[last][0],lower.displacement,net.displacement).step);
+}
+
 async function run(){
   checkBridge();checkDeckPost();checkEqualLayerClock();
   require(path.join(demo,'smooth-example.js'));require(path.join(demo,'voron-gcode.js'));
   const code=Buffer.from(await voronGcodeBytes()).toString('utf8');
   const {before,heights}=layerSmoothingExample.result;
+  const rawTop=checkLastLayer(code,heights,before);
+  const smoothed=require('node:zlib').gunzipSync(Buffer.from(layerSmoothingExample.gzip,'base64')).toString('utf8');
+  const smoothTop=checkLastLayer(smoothed,heights,layerSmoothingExample.result.after);
+  const pass=(z)=>['; CHANGE_LAYER','; Z_HEIGHT: '+z,'G0 Z'+z+' F600','; FEATURE: Outer wall','G0 X0 Y0 F3000',
+    'G1 X8 E1 F600','G1 Y4 E1','G1 X0 E1','G1 Y0 E1','G0 X0 Y0 F3000','G1 X8 E1 F600'].join('\n');
+  for(const heights of [[.25],[.2,.45,.6]]){
+    const gcode=['G90','M83',...heights.map(pass)].join('\n');
+    checkLastLayer(gcode,heights,heights.map((_,i)=>7+4*i),true);
+  }
+  console.log('Cube top matches an explicit repeat: '+rawTop.toFixed(3)+' / '+smoothTop.toFixed(3)+' µm before/after smoothing.');
   const equal=sameWallSteps(profile(plate(code,heights.map(()=>18),heights)));
   const raw=sameWallSteps(profile(plate(code,before,heights)));
   assert(equal.length>450&&raw.length===equal.length);

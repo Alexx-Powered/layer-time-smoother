@@ -965,7 +965,7 @@ function buildThermalContacts(d){
     return geometry;
   });
   // Each bin lists nearby segments. Candidate distances and arrival times are evaluated on the segment itself.
-  function match(source,targets,above){
+  function match(source,targets,above,record=null){
     targets=targets.filter(p=>!p.support);
     if(!source.length||!targets.length)return;
     const maxWidth=targets.reduce((w,p)=>Math.max(w,p.width),0),cell=Math.max(1.1,maxWidth*2);
@@ -1002,6 +1002,7 @@ function buildThermalContacts(d){
           best=weight;near=sq;at=t;support=!!q.support;matched=q;
         }
       }
+      if(record){record(p,j,matched,at,support?-best:best);continue}
       if(!above&&matched&&!support){
         const g=roadIsland.get(p);
         let below=supportsBelow.get(g);
@@ -1016,6 +1017,19 @@ function buildThermalContacts(d){
     }
   }
   for(const plane of sorted){match(plane.top,plane.bottom,false);match(plane.bottom,plane.top,true)}
+  // Match a repeat of the terminal pass only against the real top surface.
+  // Keep measured contacts and the entire toolpath/print clock untouched.
+  const last=d.z.length-1,topZ=d.z[last],surface=planeAt(topZ),period=d.duration[last];
+  const rise=last?topZ-d.z[last-1]:(topZ>1.5?.2:topZ);
+  const repeat=surface.top.filter(p=>Math.abs(p.h-rise)<=.015)
+    .map(p=>({...p,origin:p.origin+period,repeated:true}));
+  match([...surface.bottom,...repeat],d.layers[last],true,(road,j,source,at,weight)=>{
+    if(!source?.repeated)return;
+    road.repeatCover??=new Float32Array(2*road.times.length);
+    road.repeatPeriod=period;
+    // Store the arrival on the original pass so speed changes retime both passes alike.
+    road.repeatCover[2*j]=at-period-road.origin;road.repeatCover[2*j+1]=weight;
+  });
   d.attachments=attachmentHistory(d.islands,supportsBelow);
   let xmin=Infinity,ymin=Infinity,xmax=-Infinity,ymax=-Infinity;
   for(const paths of d.layers)for(const p of paths)for(let j=0;j<p.xy.length;j+=2){
@@ -1051,11 +1065,11 @@ function layerHeatHistory(model,map,p){
   }
   const placements=[[0,0,0]];
   const history=model.layers.map((paths,i)=>{
-    const span=map(model.starts[i]+model.duration[i])-map(model.starts[i]);
+    const end=map(model.starts[i]+model.duration[i]),span=end-map(model.starts[i]);
     const height=model.thickness[i],below=model.thickness[Math.max(0,i-1)];
     const lowerShare=below/(below+height),above=model.thickness[i+1]||height;
     const layer={span,remaining,lowerShare,placements,ownShare:height/(height+above),
-      hasLower:i>0,hasUpper:i+1<model.layers.length};
+      hasLower:i>0,terminal:i===model.layers.length-1};
     remaining=pairTemperatures(remaining,hot,lowerShare,i>0?1:0,span,p)[1];
     return layer;
   });
@@ -1150,18 +1164,24 @@ function mappedSample(p,j,map,params,out,k=0){
   out[k+2]=Math.abs(c[at+1])*(c[at+1]<0?params.support/100:1);
   out[k+3]=Math.abs(c[at+3])*(c[at+3]<0?params.support/100:1);
   out[k+4]=c[at]<0?-1:c[at+1]<0?2:c[at+1]?1:0;
+  const copy=p.repeatCover,weight=copy?.[2*j+1];
+  if(weight){
+    const period=map(p.origin+p.repeatPeriod)-map(p.origin);
+    out[k+1]=Math.max(0,period+(map(p.origin+copy[2*j])-birth));
+    out[k+3]=Math.abs(weight)*(weight<0?params.support/100:1);
+  }
 }
 // One representative cooling history for the entire layer. Local road contact
 // must not select or retime this curve, even during playback.
 function coolingCurve(layer,p,finalOnly=false){
   const hot=p.hot-p.air,threshold=p.tg-p.air;
-  const lowerContact=Number(layer.hasLower),upperContact=Number(layer.hasUpper);
+  const lowerContact=Number(layer.hasLower);
   const jointMobility=1-p.beta/100;
   const q=temp=>Math.min(1,Math.max(0,1-temp/threshold));
   const lowerStart=lowerContact?layer.remaining:0;
   function phase(age,covered){
     const lower=covered?atCover:lowerStart,w=covered?layer.ownShare:layer.lowerShare;
-    const contact=covered?upperContact:lowerContact;
+    const contact=covered?1:lowerContact;
     const [a,b]=pairTemperatures(lower,hot,w,contact,age,p);
     const da=q(a)-q(lower),db=q(b),own=covered?da:db;
     const common=jointMobility*(w*da+(1-w)*db);
@@ -1175,10 +1195,10 @@ function coolingCurve(layer,p,finalOnly=false){
     for(let j=0;j<=last;j++)values[j]=fn(end*j/last);
     return {end,rate:last/end,values};
   }
-  const final=upperContact?pre+phase(tail,true):phase(tail,false);
+  const final=pre+phase(tail,true);
   if(finalOnly)return final;
-  return {before:table(upperContact?Math.min(span,tail):tail,t=>phase(t,false)),
-    after:upperContact?table(tail,t=>pre+phase(t,true)):null,span,
+  return {before:table(Math.min(span,tail),t=>phase(t,false)),
+    after:table(tail,t=>pre+phase(t,true)),span,
     final};
 }
 function curveAt(table,age){
@@ -1194,7 +1214,7 @@ function prepareLayerPreview(paths,geometry,layer,p,map){
   const hotRatio=(p.hot-p.air)/(p.tg-p.air);
   const airQ=age=>Math.max(0,1-hotRatio*Math.exp(-age/p.tau));
   const freeScale=p.alpha*1e-6*(p.tg-p.air);
-  let first=Infinity,last=0,xlo=Infinity,xhi=-Infinity,ylo=Infinity,yhi=-Infinity;
+  let first=Infinity,last=0,lastReal=0,xlo=Infinity,xhi=-Infinity,ylo=Infinity,yhi=-Infinity;
   for(const [i,road] of paths.entries()){
     const g=geometry[i];fillWindows.push(g.fill?[map(g.fillStart),map(g.fillEnd)]:[Infinity,Infinity]);
     road.localShrink=localShrink.subarray(road.nodeBase,road.nodeBase+road.times.length);
@@ -1205,7 +1225,11 @@ function prepareLayerPreview(paths,geometry,layer,p,map){
       const cover=p.beta*.01*road.mapped[m+3];
       localFinal[k]=hold*(1-cover*(1-airQ(gap)));
       first=Math.min(first,road.mapped[m]);last=Math.max(last,road.mapped[m]+Math.max(
-        layer.hasUpper?layer.span:0,Number.isFinite(gap)?gap:0));
+        layer.span,Number.isFinite(gap)?gap:0));
+      if(layer.terminal){
+        const contact=road.contact,at=4*j;
+        lastReal=Math.max(lastReal,road.mapped[m],contact?.[at+3]?map(contact[at+2]):0);
+      }
       xlo=Math.min(xlo,road.xy[2*j]);xhi=Math.max(xhi,road.xy[2*j]);
       ylo=Math.min(ylo,road.xy[2*j+1]);yhi=Math.max(yhi,road.xy[2*j+1]);
     }
@@ -1215,8 +1239,19 @@ function prepareLayerPreview(paths,geometry,layer,p,map){
     const [strain,x,y]=layer.placements[g.attachment];
     return [x+strain*g.x,y+strain*g.y];
   });
+  const tail=12*Math.max(p.tau,p.weldTime),settled=last+tail;
   return {displacement,localShrink,localFinal,curve,geometry,fillWindows,registration,freeScale,airQ,
-    birth:[first],settled:last+12*Math.max(p.tau,p.weldTime),radius:Math.hypot(xhi-xlo,yhi-ylo),time:NaN,stamp:0};
+    birth:[first],settled,playbackEnd:layer.terminal?lastReal+tail:settled,cooldownStart:lastReal,radius:Math.hypot(xhi-xlo,yhi-ylo),time:NaN,stamp:0};
+}
+function mechanicsTime(net,t){
+  if(t<net.birth[0])return -Infinity;
+  if(t>=net.playbackEnd)return Infinity;
+  // After the final real deposition/contact, fit thermal relaxation to the existing cooldown.
+  if(net.settled>net.playbackEnd&&t>net.cooldownStart){
+    const fraction=(t-net.cooldownStart)/(net.playbackEnd-net.cooldownStart);
+    return t+fraction*(net.settled-net.playbackEnd);
+  }
+  return t;
 }
 function solveRoadMechanics(paths,net,t,p,pull=true){
   if(net.time===t&&net.includePull===pull)return;
@@ -1232,7 +1267,7 @@ function solveRoadMechanics(paths,net,t,p,pull=true){
       const curve=net.curve,gap=road.mapped[m+1];
       let bulk=curve.final,local=net.localFinal[k];
       if(!done){
-        bulk=curve.after&&age>=curve.span?curveAt(curve.after,age-curve.span):curveAt(curve.before,age);
+        bulk=age>=curve.span?curveAt(curve.after,age-curve.span):curveAt(curve.before,age);
         const q=net.airQ(age),hold=1-(road.mapped[m+4]<0?p.bed:p.c)*.01*road.mapped[m+2];
         local=hold*q;
         if(age>gap)local-=hold*p.beta*.01*road.mapped[m+3]*(q-net.airQ(gap));
@@ -6427,7 +6462,7 @@ function refreshSamples(){
       for(let j=0;j<p.times.length;j++)mappedSample(p,j,simTime,params,p.mapped,5*j);
     }
     const net=prepareLayerPreview(paths,data.islands[i],heat[i],params,simTime);
-    data.mechanics.push(net);data.shrinkRadius=Math.max(data.shrinkRadius,net.radius*.5);settled.push(net.settled);
+    data.mechanics.push(net);data.shrinkRadius=Math.max(data.shrinkRadius,net.radius*.5);settled.push(net.playbackEnd);
   }
   data.thermalSettled=settled;data.thermalKey=key;
 }
@@ -6625,8 +6660,8 @@ function frame(){
  let selectedBand=null;
  for(let i=0;i<n;i++){
     if(thermal){
-      const net=data.mechanics[i],instant=t<net.birth[0]?-Infinity:t>=settled[i]?Infinity:t;
-      solveRoadMechanics(data.layers[i],net,instant,params,includePull);
+      const net=data.mechanics[i];
+      solveRoadMechanics(data.layers[i],net,mechanicsTime(net,t),params,includePull);
     }
    const count=whole||i<active?data.counts[i]:i>active?0:layerFinished&&i===layerPlayback?data.counts[i]:upper(data.ends[i],source-data.starts[i]);
    counts[i]=count;
@@ -6642,7 +6677,8 @@ function frame(){
  if(document.activeElement!==$('height'))$('height').value=fmt(data.z[selected],2);
  $('down').disabled=selected===0;$('up').disabled=selected===n-1;
  const probe=selectedBand?.hit||data.probeSets[probeSide][selected],path=data.layers[selected][probe.path],j=probe.f<.5?probe.j-1:probe.j;
- const m=5*j,contactIndex=4*j,g=thermal&&path.mapped[m+3]?path.mapped[m+1]:Infinity,area=path.contact[contactIndex+1];
+ const contactIndex=4*j,cover=path.contact[contactIndex+3],area=path.contact[contactIndex+1];
+ const g=thermal&&cover&&(cover>0||params.support>0)?Math.max(0,simTime(path.contact[contactIndex+2])-simTime(path.origin+path.times[j])):Infinity;
  const reading=selectedBand?'层间台阶 '+fmt(disp[selected],1)+' µm':selected<2?'首层不参与比较，曲线从第 3 层开始':'暂无可比较的相邻外墙';
  $('phase').textContent=local?'附近层　':whole?(thermal?'冷却完成　':'走线完成　'):layerFinished?'本层完成　':printing?'正在打印　':'整件冷却中　';
  $('message').textContent=whole&&!thermal?'整件打印走线已显示。':whole?sideNames[probeSide]+' · '+reading+'。':layerFinished?'第 '+(selected+1)+' 层走线已播放完。':printing?'第 '+(active+1)+' / '+n+' 层 · '+(motion?motion.kind+(motion.role?' · '+motion.role:''):'等待下一段走线'):'最后一层已经打完，模型仍在冷却。';
