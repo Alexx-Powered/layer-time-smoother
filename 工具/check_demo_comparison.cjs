@@ -4,7 +4,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
-const html=fs.readFileSync(path.join(__dirname,'../demo/index.html'),'utf8');
+const html=fs.readFileSync(path.join(__dirname,'../demo/index.html'),'utf8').replace(/\r\n/g,'\n');
 const ctx=vm.createContext({self:{},console,TextDecoder});
 function section(first,last){
   const start=html.indexOf(first),end=html.indexOf(last,start+first.length);
@@ -48,3 +48,41 @@ assert.deepEqual([...ctx.snapshotOffsets(start,{from:reverse,mix:0})[0]],[2,6]);
 assert.deepEqual([...ctx.snapshotOffsets(start,{from:reverse,mix:1})[0]],[1,4]);
 assert.deepEqual([...end[0].displacement],[5,12]);
 console.log('Per-layer clocks, nozzle coordinates and interrupted geometry transitions verified.');
+
+// A dense layer used to switch to pixel-wide lines. Build the production bead
+// geometry and verify that a corner, a width/height change and a travel gap survive.
+vm.runInContext(section('var THREE=',';(()=>{\nconst sides=')+
+  section('const sides=','const palette=')+
+  section('function beadGeometry(','function makeViewport(')+
+  section('  const stock=new Map();','  const bedCanvas=')+
+  section('  function thermalMaterial(','  function refreshThermalAttribute(')+
+  section('  function writeOffsets(','  function schemeActive(')+
+  section('  function dispose(m){','  function schedule()')+
+  'let model,comparison,flatLayers,lastBedView;var meshes=[],scene=new THREE.Scene();',ctx);
+const denseXY=new Float32Array(2*90001);
+for(let i=0;i<90001;i++)denseXY[2*i]=i/1000;
+const paths=[
+  {xy:denseXY,times:new Float32Array(90001),width:.42,h:.2,nodeBase:0},
+  {xy:[20,2,21,2,21,3],times:[0,1,2],width:.5,h:0,nodeBase:90001,filament:1}
+];
+ctx.renderer={getContext:()=>({DYNAMIC_DRAW:35048})};
+ctx.setModel({layers:[paths],z:[12],thickness:[.3],filamentColors:['#cc0044','#438bec'],sourceCount:90002,segments:90002},true);
+const mesh=ctx.meshes[0],g=mesh.geometry,n=g.instanceCount;
+assert(mesh.isMesh&&mesh.material.isMeshStandardMaterial&&mesh.position.z===12);
+assert(g.isInstancedBufferGeometry&&n===90002);
+assert.equal(g.getAttribute('spoolRGB').count,n);
+assert.notEqual(g.getAttribute('spoolRGB').getX(0),g.getAttribute('spoolRGB').getX(n-1));
+assert.equal(g.getAttribute('position').count,16);
+assert.equal(g.index.count,48);
+assert.deepEqual([...g.getAttribute('roadEnds').array.slice(-8)],[20,2,21,2,21,2,21,3]);
+const perps=g.getAttribute('roadPerps').array;
+assert.deepEqual([...perps.slice(-6,-4)],[...perps.slice(-4,-2)]);
+assert(Math.abs(g.getAttribute('beadSize').getX(0)-.42)<1e-6);
+assert(Math.abs(g.getAttribute('beadSize').getY(0)-.2)<1e-6);
+assert(Math.abs(g.getAttribute('beadSize').getY(n-1)-.3)<1e-6);
+// During playback the draw count may be smaller than the layer's full buffer.
+g.instanceCount=3;
+const offsets=new Float32Array(2*90004);offsets.set([1,2,3,4,5,6],2*90001);
+ctx.writeOffsets({geometry:g},paths,'wallDisplacement',offsets);
+assert.deepEqual([...g.getAttribute('wallDisplacement').array.slice(-8)],[1,2,3,4,3,4,5,6]);
+console.log('Dense bead dimensions, corner joins, travel gaps and thermal endpoints verified.');
