@@ -76,7 +76,7 @@ window.createSmoothingPanel = function ({apply, clear, cancelPreview, inspect}) 
       let start;paint(from,initial);
       function step(now){
         start??=now;
-        const t=Math.min(1,(now-start)/320),f=t*t*(3-2*t);
+        const t=Math.min(1,(now-start)/440),f=t*t*(3-2*t);
         paint(t===1?target:target.map((v,i)=>from[i]+(v-from[i])*f),initial+(alpha-initial)*f);
         if(t<1)animation=requestAnimationFrame(step);
       }
@@ -205,17 +205,21 @@ window.createSmoothingPanel = function ({apply, clear, cancelPreview, inspect}) 
     if(revision!==selection)return;
     const changed=current!==entry||enabled!==on;
     current=entry;output=blob;enabled=on;
-    controls();display(entry,changed);
+    controls();
     const note=entry.saved?'结果已保存到本机。':'本次打开期间复用此结果。';
-    setStatus(!on?'显示原始走线。'+note:entry.result.changed?'显示平滑走线。'+note:'本档保留原始进给。'+note);
-    if(!changed)return;
+    const label=!on?'显示原始走线。'+note:entry.result.changed?'显示平滑走线。'+note:'本档保留原始进给。'+note;
+    if(!changed){display(entry,false);setStatus(label);return}
     const transition=++displayRevision;
+    setStatus(on?'正在准备平滑走线…':label);
     try{
       if(on)await apply(blob,entry.result,()=>transition===displayRevision&&enabled);
       else clear();
+      if(owner!==plate||transition!==displayRevision)return;
+      display(entry,true);
+      if(selection===revision)setStatus(label);
     }catch(error){
       if(owner!==plate||transition!==displayRevision)return;
-      enabled=false;clear();controls();drawChart(true);
+      enabled=false;clear();controls();display(entry,true);
       setStatus('平滑结果已就绪，3D 预览读取失败。可打开开关重试。'+error.message);
     }
   }

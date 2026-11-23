@@ -37,7 +37,7 @@
  <div class="exportWrap"><div class="splitButton"><button type="button" id="smoothExport" disabled>导出平滑 G-code</button><button type="button" id="exportMenuButton" aria-label="选择切片器打开 G-code" aria-expanded="false" aria-controls="exportMenu" disabled>▾</button></div>
  <div id="exportMenu" class="exportMenu" hidden><button type="button" data-slicer="bambu">在 Bambu Studio 中打开</button><button type="button" data-slicer="orca">在 OrcaSlicer 中打开</button></div></div></div>
  <div class="smoothControls"><div class="strengthCtl"><div class="strengthLabel"><label for="strength">平滑度 <output id="strengthValue" for="strength">自动</output></label><span class="strengthActions"><button type="button" id="calculateStrength" hidden>计算平滑层时间</button><button type="button" id="smoothAuto" aria-pressed="true">自动选参</button></span></div>
- <input id="strength" type="range" min="0" max="100" step="0.5" value="65" aria-describedby="strengthHint"><small id="strengthHint">拖动选择平滑度，点计算应用新档位。</small></div>
+ <input id="strength" type="range" min="0" max="100" step="0.5" value="65" aria-describedby="strengthHint"><small id="strengthHint">选新档位后点计算。100 会尽量拉平整层用时，外墙各处的冷却间隔仍可不同。</small></div>
  <div class="timeMetric"><span>平滑后预计整盘用时</span><strong id="smoothTotal">—</strong></div><div class="timeMetric"><span>相对原盘</span><strong id="smoothCost">—</strong></div></div>
  <div class="chartHead"><h3>每层打印时间</h3><div class="profileKey"><span class="keyOriginal">原始</span><span class="keySmooth">平滑后</span></div></div>
  <svg id="timeCurve" role="img" aria-label="原始与平滑后的逐层打印时间对比" viewBox="0 0 700 160"></svg>
@@ -1204,7 +1204,7 @@ function sliceAppearance(contents,plate={}){
   const first=Number.isInteger(plate.first_extruder)&&plate.first_extruder>=0&&plate.first_extruder<255?plate.first_extruder:Math.max(0,colors.findIndex(Boolean));
   return {colors,first,bed};
 }
-function parseGcode(contents,name,chosenObject,plate,estimatedDuration){
+function parseGcode(contents,name,chosenObject,plate,estimatedDuration,layerTimes){
   if(contents.includes('\0'))throw Error('文件是二进制格式。请从切片软件导出文本 G-code。');
   const appearance=sliceAppearance(contents,plate);
   let filament=appearance.first;
@@ -1355,26 +1355,44 @@ function parseGcode(contents,name,chosenObject,plate,estimatedDuration){
   const header=/^;\s*model printing time:\s*((?:\d+\s*[dhms]\s*)+)/im.exec(contents.slice(0,32768));
   const reported=estimatedDuration>0?estimatedDuration:header?[...header[1].matchAll(/(\d+)\s*([dhms])/ig)].reduce((a,m)=>a+(+m[1])*({d:86400,h:3600,m:60,s:1}[m[2].toLowerCase()]),0):0;
   const ratio=reported>0?reported/Math.max(.001,endTime-base):1;
+  // The solver measures each layer after serializing the adjusted feed rates.
+  // The G-code order and feed determine the relative times inside that layer.
+  const aligned=layerTimes?.seconds.length===visible.length&&layerTimes.heights.length===visible.length&&
+    visible.every((l,i)=>Math.abs(l.z-layerTimes.heights[i])<.012&&Number.isFinite(layerTimes.seconds[i])&&layerTimes.seconds[i]>0);
+  let elapsed=0;
+  const starts=[],slopes=[],durations=visible.map((l,i)=>{
+    const span=Math.max(.000001,(visible[i+1]?.start??endTime)-l.start);
+    const duration=aligned?layerTimes.seconds[i]:Math.max(.001,span*ratio);
+    starts.push(elapsed);slopes.push(duration/span);elapsed+=duration;return duration;
+  });
+  function timeAtMove(t){
+    if(!aligned)return t*ratio;
+    let low=0,high=visible.length;
+    while(low+1<high){const mid=(low+high)>>>1;if(visible[mid].start<=t)low=mid;else high=mid}
+    return starts[low]+(t-visible[low].start)*slopes[low];
+  }
   // One transferable buffer per layer keeps million-segment files practical.
   for(const [i,l] of visible.entries()){
-    visit[i]*=ratio;
+    visit[i]=timeAtMove(visit[i]);
     const points=l.paths.reduce((sum,p)=>sum+p.times.length,0),packed=new Float32Array(points*3);
     let off=0;
     for(const p of l.paths){
       const n=p.times.length,xy=packed.subarray(2*off,2*(off+n)),times=packed.subarray(2*points+off,2*points+off+n);
       for(let j=0;j<n;j++){
         xy[2*j]=p.xy[2*j]-cx;xy[2*j+1]=p.xy[2*j+1]-cy;
-        times[j]=(p.times[j]-l.start)*ratio;
+        times[j]=(p.times[j]-l.start)*slopes[i];
       }
       p.xy=xy;p.times=times;off+=n;
     }
   }
-  const durations=visible.map((l,i)=>Math.max(.001,((visible[i+1]?.start??endTime)-l.start)*ratio));
-  const motion=new Float32Array(totalWords);let out=0;
+  const motion=new Float32Array(totalWords);let out=0,epochIndex=0;
   for(const [i,chunk] of traceChunks.entries()){
     const n=i+1===traceChunks.length?used:chunk.length;
     for(let k=0;k<n;k+=9){
-      chunk[k]*=ratio;chunk[k+1]*=ratio;chunk[k+2]-=cx;chunk[k+3]-=cy;chunk[k+5]-=cx;chunk[k+6]-=cy;
+      if(epochIndex+2<epochs.length&&(out+k)/9>=epochs[epochIndex+2])epochIndex+=2;
+      const epoch=epochs[epochIndex+1],origin=timeAtMove(epoch);
+      chunk[k]=timeAtMove(epoch+chunk[k])-origin;chunk[k+1]=timeAtMove(epoch+chunk[k+1])-origin;
+      chunk[k+2]-=cx;chunk[k+3]-=cy;chunk[k+5]-=cx;chunk[k+6]-=cy;
     }
     motion.set(chunk.subarray(0,n),out);out+=n;
   }
@@ -1385,9 +1403,9 @@ function parseGcode(contents,name,chosenObject,plate,estimatedDuration){
     }
     return false;
   });
-  for(const p of nearby)for(let j=0;j<p.times.length;j++){p.xy[2*j]-=cx;p.xy[2*j+1]-=cy;p.times[j]*=ratio}
-  for(let i=1;i<epochs.length;i+=2)epochs[i]*=ratio;
-  return {name,motion,motionEpochs:Float64Array.from(epochs),filamentColors:appearance.colors,bed:appearance.bed.map(([x,y])=>[x-cx,y-cy]),supports:nearby,z:visible.map(l=>l.z),duration:durations,visit,interval:visit.slice(1).map((t,i)=>Math.max(0,t-visit[i])),layers:visible.map(l=>l.paths),size:[span,depth,visible.at(-1).z],hits,normalized:reported>0,probeError:offsets.reduce((a,b)=>Math.max(a,b),0),objectIds,objectId,imported:true};
+  for(const p of nearby)for(let j=0;j<p.times.length;j++){p.xy[2*j]-=cx;p.xy[2*j+1]-=cy;p.times[j]=timeAtMove(p.times[j])}
+  for(let i=1;i<epochs.length;i+=2)epochs[i]=timeAtMove(epochs[i]);
+  return {name,motion,motionEpochs:Float64Array.from(epochs),filamentColors:appearance.colors,bed:appearance.bed.map(([x,y])=>[x-cx,y-cy]),supports:nearby,z:visible.map(l=>l.z),duration:durations,visit,interval:visit.slice(1).map((t,i)=>Math.max(0,t-visit[i])),layers:visible.map(l=>l.paths),size:[span,depth,visible.at(-1).z],hits,layerTiming:!!aligned,normalized:reported>0,probeError:offsets.reduce((a,b)=>Math.max(a,b),0),objectIds,objectId,imported:true};
 }
 self.onmessage=async ({data})=>{
  try{
@@ -1415,7 +1433,7 @@ self.onmessage=async ({data})=>{
       self.postMessage({sameDemo:name,sourceFile,plateInfo,filamentColors:sliceAppearance(new TextDecoder().decode(bytes),plateInfo).colors});return;
     }
   }
-  const model=parseGcode(new TextDecoder().decode(bytes),name,objectId,plateInfo,estimatedDuration);
+  const model=parseGcode(new TextDecoder().decode(bytes),name,objectId,plateInfo,estimatedDuration,data.layerTimes);
   buildThermalContacts(model);
   self.postMessage({model,sourceFile,plateInfo},[model.motion.buffer,model.motionEpochs.buffer,...model.layers.map(layer=>layer[0].xy.buffer),...model.lateral.map(links=>links.buffer)]);
  }catch(error){self.postMessage({error:error.message||'无法读取该文件，请换一个切片文件试试。'})}
@@ -5732,7 +5750,7 @@ function beadGeometry(paths,z,layerHeight) {
 function makeViewport(canvas){
   const scene=new THREE.Scene(), camera=new THREE.OrthographicCamera(-1,1,1,-1,.01,10000);
   
-  let renderer,flat,model,meshes=[],lightweight=false,view=null,scheduled=false,previousSurface=null;
+  let renderer,flat,model,meshes=[],lightweight=false,view=null,scheduled=false,comparison=null;
   const homeYaw=-1,homePitch=.37;
   const reducedMotion=matchMedia('(prefers-reduced-motion: reduce)');
   let zoom=1,dx=0,dy=0,yaw=homeYaw,pitch=homePitch;
@@ -5751,7 +5769,7 @@ function makeViewport(canvas){
   }
   const paletteCache=Array.from({length:257},(_,i)=>colorFor(i/256));
   const thermalUniforms={};
-  for(const key of ['uGain','uScale','uField'])thermalUniforms[key]={value:0};
+  for(const key of ['uGain','uScale','uField','uComparison'])thermalUniforms[key]={value:0};
   const stock=new Map();
   function filamentTint(hex){
     hex=hex||'#9C9C9F';
@@ -5835,21 +5853,22 @@ function makeViewport(canvas){
 
   function thermalMaterial(material){
     // Constant attributes keep toolpath-only models renderable before any thermal data is allocated.
-    material.defaultAttributeValues={...material.defaultAttributeValues,wallDisplacement:[0,0]};
+    material.defaultAttributeValues={...material.defaultAttributeValues,wallDisplacement:[0,0],previousDisplacement:[0,0]};
     material.onBeforeCompile=shader=>{
       Object.assign(shader.uniforms,thermalUniforms,{uTintLow:{value:palette[0]},uTintMid:{value:palette[1]},uTintHigh:{value:palette[2]}});
       shader.vertexShader='#ifdef MULTIPLE_SPOOLS\nattribute float spoolRGB;\n#endif\nuniform vec3 uTintLow,uTintMid,uTintHigh;\nattribute vec2 wallDisplacement; varying vec3 localTint;\n'+
-        'uniform float uGain,uScale,uField;\n'+shader.vertexShader;
+        'attribute vec2 previousDisplacement; uniform float uGain,uScale,uField,uComparison;\n'+shader.vertexShader;
       shader.vertexShader=shader.vertexShader.replace('#include <begin_vertex>',[
         '#include <begin_vertex>',
-        'float v=clamp(length(wallDisplacement)*1000.0/uScale,0.0,1.0)*2.0;',
+        'vec2 offset=mix(previousDisplacement,wallDisplacement,uComparison);',
+        'float v=clamp(length(offset)*1000.0/uScale,0.0,1.0)*2.0;',
         'vec3 tint=v<1.0?mix(uTintLow,uTintMid,v):mix(uTintMid,uTintHigh,v-1.0);',
         'vec3 film=vec3(1.0);',
         '#ifdef MULTIPLE_SPOOLS',
         'vec3 enc=mod(floor(spoolRGB/vec3(65536.0,256.0,1.0)),256.0)/255.0;',
         'film=mix(enc/12.92,pow((enc+.055)/1.055,vec3(2.4)),step(vec3(.04045),enc));',
         '#endif',
-        'localTint=mix(film,tint,uField); transformed.xy-=wallDisplacement*uGain;'
+        'localTint=mix(film,tint,uField); transformed.xy-=offset*uGain;'
       ].join('\n'));
       shader.fragmentShader='varying vec3 localTint;\n'+shader.fragmentShader;
       shader.fragmentShader=shader.fragmentShader.replace('#include <color_fragment>','#include <color_fragment>\ndiffuseColor.rgb*=localTint;');
@@ -5858,17 +5877,25 @@ function makeViewport(canvas){
   }
   function refreshThermalAttribute(mesh,paths,layer){
     const net=data.mechanics[layer],state=mesh.userData;
+    if(comparison&&state.comparisonId!==comparison.id){
+      writeOffsets(mesh,paths,'previousDisplacement',comparison.from[layer]);
+      state.comparisonId=comparison.id;
+    }
     if(state.revision===view.revision&&state.mechanicsStamp===net.stamp)return;
+    writeOffsets(mesh,paths,'wallDisplacement',net.displacement);
+    state.revision=view.revision;state.mechanicsStamp=net.stamp;
+  }
+  function writeOffsets(mesh,paths,name,nodes){
     const g=mesh.geometry;
-    let attr=g.getAttribute('wallDisplacement');
+    let attr=g.getAttribute(name);
     if(!attr){
       attr=new THREE.Float32BufferAttribute(g.getAttribute('position').count*2,2);
       attr.setUsage(renderer.getContext().DYNAMIC_DRAW);
-      g.setAttribute('wallDisplacement',attr);
+      g.setAttribute(name,attr);
     }
     let k=0;
     for(const p of paths){
-      const v=p.displacement;
+      const v=nodes.subarray(2*p.nodeBase,2*(p.nodeBase+p.times.length));
       if(lightweight){
         for(let j=2;j<v.length;j+=2){
           attr.array[k++]=v[j-2];attr.array[k++]=v[j-1];attr.array[k++]=v[j];attr.array[k++]=v[j+1];
@@ -5877,7 +5904,7 @@ function makeViewport(canvas){
         for(let j=0;j<v.length;j+=2)for(let s=0;s<sides;s++){attr.array[k++]=v[j];attr.array[k++]=v[j+1]}
       }
     }
-    attr.needsUpdate=true;state.revision=view.revision;state.mechanicsStamp=net.stamp;
+    attr.needsUpdate=true;
   }
   function schemeActive(i){return view.field&&!(view.local&&i<view.lo)}
 
@@ -5901,26 +5928,25 @@ function makeViewport(canvas){
   }
   function dispose(m){scene.remove(m);m.geometry.dispose();m.material.dispose()}
   function setModel(d,keepCamera=false,compare=false){
-    const light=linePreview(d),reuse=compare&&previousSurface?.model===d;
-    const newMeshes=reuse?previousSurface.meshes:[];
-    const newFlatLayers=reuse?previousSurface.flatLayers:[];
+    // A smoothing export changes feed rates on the existing roads. Keep the
+    // bead vertices, material and camera while their displacement field moves.
+    if(compare&&sameRoadGeometry(model,d)){model=d;flatLayers=[];return}
+    comparison=null;
+    const light=linePreview(d),newMeshes=[];
     try{
-      if(renderer&&!reuse)for(let i=0;i<d.z.length;i++){
+      if(renderer)for(let i=0;i<d.z.length;i++){
         const z=d.z[i],h=d.thickness[i],paths=d.layers[i];
         const mesh=light?new THREE.LineSegments(lineGeometry(paths,z),new THREE.LineBasicMaterial({vertexColors:true})):
             new THREE.Mesh(beadGeometry(paths,z,h),new THREE.MeshStandardMaterial({roughness:.7,metalness:.035}));
         configureFilaments(mesh,paths,d,light);thermalMaterial(mesh.material);newMeshes.push(mesh);
       }
     }catch(err){newMeshes.forEach(dispose);throw err}
-    if(previousSurface&&!reuse)previousSurface.meshes.forEach(dispose);
-    if(compare){
-      previousSurface={model,meshes,flatLayers};meshes.forEach(m=>scene.remove(m));
-    }else{previousSurface=null;meshes.forEach(dispose)}
+    meshes.forEach(dispose);
     meshes=newMeshes;meshes.forEach(m=>scene.add(m));
     model=d;lightweight=light;
     if(!keepCamera){view=null;applyHome();gainTween=null}
     lastBedView='';
-    flatLayers=newFlatLayers;
+    flatLayers=[];
   }
   function schedule(){if(!scheduled){scheduled=true;requestAnimationFrame(render)}}
   function applyHome(){
@@ -5938,6 +5964,12 @@ function makeViewport(canvas){
     return t*t*(3-2*t);
   }
   function advanceTransitions(now){
+    if(comparison){
+      comparison.start??=now;
+      comparison.mix=easedProgress(now,comparison.start,440);
+      if(comparison.mix===1)comparison=null;
+      paintProfile();
+    }
     if(gainTween){
       const t=easedProgress(now,gainTween.start,440);
       displayedGain=gainTween.from+(view.gain-gainTween.from)*t;
@@ -5949,7 +5981,7 @@ function makeViewport(canvas){
       dx=c.dx*remaining;dy=c.dy*remaining;zoom=Math.exp(c.logZoom*remaining);
       if(t===1)applyHome();
     }
-    if(gainTween||cameraTween)schedule();
+    if(gainTween||cameraTween||comparison)schedule();
   }
   function size(w,h){return Math.max(model.size[2]*1.25+Math.hypot(model.size[0],model.size[1])*.58,
     Math.hypot(model.size[0],model.size[1])*1.18*h/w,model.extent*.65)/zoom}
@@ -5973,7 +6005,7 @@ function makeViewport(canvas){
     if(hotend){hotend.visible=!!motion;if(motion){hotend.position.set(...motion.tip);hotend.scale.setScalar(nozzleScale)}}
     if(renderer){
       if(renderer.domElement.width!==Math.floor(w*renderer.getPixelRatio())||renderer.domElement.height!==Math.floor(h*renderer.getPixelRatio()))renderer.setSize(w,h,false);
-      const values={uGain:view.thermal?displayedGain:0,uScale:view.colorMax,uField:0};
+      const values={uGain:view.thermal?displayedGain:0,uScale:view.colorMax,uField:0,uComparison:comparison?.mix??1};
       for(const key in values)thermalUniforms[key].value=values[key];
       for(let i=0;i<meshes.length;i++){
         const mesh=meshes[i],count=view.shown[i];mesh.visible=count>0;
@@ -6000,7 +6032,7 @@ function makeViewport(canvas){
       // Store cooled layers in model coordinates so camera moves do not rerun thermal calculations.
       for(let order=0;order<model.layers.length;order++){
         const i=pitch>=0?order:model.layers.length-1-order,count=view.shown[i];if(!count)continue;
-        const stable=(!view.thermal||view.t>view.settled[i])&&count===model.counts[i],fieldHere=schemeActive(i);
+        const stable=!comparison&&(!view.thermal||view.t>view.settled[i])&&count===model.counts[i],fieldHere=schemeActive(i);
         const key=[view.revision,displayedGain,fieldHere,view.local&&i<view.lo].join('/');
         let bins=stable&&flatLayers[i]?.key===key?flatLayers[i].bins:null;
         if(!bins){
@@ -6010,7 +6042,7 @@ function makeViewport(canvas){
             const ink=filamentTint(model.filamentColors[p.filament??0]);
             const flatInk=view.local&&i<view.lo?ink.clone().multiplyScalar(.5):ink;
             const localPoint=j=>{
-              const x=p.xy[2*j],y=p.xy[2*j+1],ux=p.displacement[2*j],uy=p.displacement[2*j+1];
+              const x=p.xy[2*j],y=p.xy[2*j+1],ux=nodeOffset(i,p,j,0),uy=nodeOffset(i,p,j,1);
               return [x-ux*displayedGain,y-uy*displayedGain,Math.hypot(ux,uy)*1000];
             };
             let a=localPoint(0);
@@ -6034,15 +6066,15 @@ function makeViewport(canvas){
 
     if(!renderer&&motion)drawFlatNozzle(project,motion,nozzleScale,Math.min(1.4,devicePixelRatio||1));
     const i=view.selected,probe=data.probeSets[probeSide][i],hit=probe.xy;
-    const offset=probeOffset(i,view.t,probeSide);
+    const offset=visualProbe(i);
     const [hx,hy]=project(hit[0]-offset[0]*displayedGain,hit[1]-offset[1]*displayedGain,model.z[i]-model.thickness[i]/2);
     const fresh=$('freshLine');fresh.hidden=true;
     if(motion){
       const [x,y]=project(...motion.tip);
       if(x>=0&&x<=w&&y>=0&&y<=h){
         if(motion.p&&(model===data||motion.p.rank>0)){
-          const a=motion.a,j=2*(motion.j-1),v=motion.p.displacement;
-          const [sx,sy]=project(a[0]-v[j]*displayedGain,a[1]-v[j+1]*displayedGain,a[2]),[tx,ty]=project(motion.tip[0],motion.tip[1],a[2]),dx=tx-sx,dy=ty-sy;
+          const a=motion.a,j=motion.j-1;
+          const [sx,sy]=project(a[0]-nodeOffset(motion.layer,motion.p,j,0)*displayedGain,a[1]-nodeOffset(motion.layer,motion.p,j,1)*displayedGain,a[2]),[tx,ty]=project(motion.tip[0],motion.tip[1],a[2]),dx=tx-sx,dy=ty-sy;
           fresh.hidden=false;fresh.style.width=Math.hypot(dx,dy)+'px';fresh.style.transform='translate('+sx+'px,'+sy+'px) rotate('+Math.atan2(dy,dx)+'rad)';
         }
       }
@@ -6077,32 +6109,34 @@ function makeViewport(canvas){
   });
   $('home').onclick=reset;$('zin').onclick=()=>magnify(1.22);$('zout').onclick=()=>magnify(1/1.22);
   new ResizeObserver(schedule).observe(canvas.parentElement);
-  return {setModel,
-    captureComparison(){
-      if(reducedMotion.matches||!view)return ()=>{};
-      // WebGL normally clears its drawing buffer after compositing.
-      if(renderer)renderer.render(scene,camera);
-      const fades=[canvas,$('profile')].map(target=>{
-        const parent=target.parentElement,previous=parent.querySelector('.comparisonFrame');
-        const snapshot=document.createElement('canvas');
-        snapshot.width=target.width;snapshot.height=target.height;snapshot.className='comparisonFrame';
-        snapshot.setAttribute('aria-hidden','true');
-        const ctx=snapshot.getContext('2d');
-        ctx.globalAlpha=Number(getComputedStyle(target).opacity);ctx.drawImage(target,0,0);
-        if(previous){
-          ctx.globalAlpha=Number(getComputedStyle(previous).opacity);ctx.drawImage(previous,0,0);
-          previous.remove();
-        }
-        target.getAnimations().forEach(a=>a.cancel());
-        target.after(snapshot);
-        return ()=>{
-          const timing={duration:320,easing:'ease-in-out'};
-          target.animate([{opacity:0},{opacity:1}],timing);
-          const fade=snapshot.animate([{opacity:1},{opacity:0}],timing);
-          fade.onfinish=fade.oncancel=()=>snapshot.remove();
-        };
-      });
-      return ()=>fades.forEach(fade=>fade());
+  function nodeOffset(i,p,j,axis){
+    const k=2*j+axis,target=p.displacement[k];
+    if(!comparison)return target;
+    const start=comparison.from[i][2*p.nodeBase+k];
+    return start+(target-start)*comparison.mix;
+  }
+  function visualProbe(i){
+    const {path,j,f}=data.probeSets[probeSide][i],p=data.layers[i][path];
+    return [0,1].map(axis=>(1-f)*nodeOffset(i,p,j-1,axis)+f*nodeOffset(i,p,j,axis));
+  }
+  function paintProfile(){
+    if(!profileState)return;
+    const {disp,shown,scale,raw}=profileState;
+    if(!comparison){drawProfile(disp,shown,scale,raw);return}
+    const [nx,ny]=probeNormals[probeSide];
+    const mixed=disp.map((_,i)=>{const [x,y]=visualProbe(i);return 1000*(nx*x+ny*y)});
+    const ref=raw||((progress===1&&referenceProfile)?referenceProfile[probeSide]:null);
+    const alpha=comparison.rawAlpha+((raw?1:0)-comparison.rawAlpha)*comparison.mix;
+    drawProfile(mixed,shown,scale,ref,alpha);
+  }
+  let comparisonId=0;
+  return {setModel,paintProfile,
+    beginComparison(next){
+      if(reducedMotion.matches||!view?.thermal||!sameRoadGeometry(data,next)){comparison=null;return}
+      const last=comparison,mix=last?.mix??1;
+      const rawAlpha=last?last.rawAlpha+((profileState.raw?1:0)-last.rawAlpha)*mix:(profileState.raw?1:0);
+      const from=snapshotOffsets(data.mechanics,last);
+      comparison={id:++comparisonId,from,mix:0,start:null,rawAlpha};
     },
     show(st){
     if(!view||$('amplify').disabled||reducedMotion.matches){
@@ -6117,6 +6151,25 @@ const $=id=>document.getElementById(id);
 const fmt=(n,p=1)=>Number(n).toFixed(p);
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 const upper=(arr,v)=>{let l=0,r=arr.length;while(l<r){const m=(l+r)>>>1;if(arr[m]<=v)l=m+1;else r=m}return l};
+function snapshotOffsets(mechanics,transition){
+  return mechanics.map((net,i)=>{
+    const buffer=net.displacement.slice();
+    if(transition){
+      const start=transition.from[i];
+      for(let k=0;k<buffer.length;k++)buffer[k]=start[k]+(buffer[k]-start[k])*transition.mix;
+    }
+    return buffer;
+  });
+}
+function sameRoadGeometry(a,b){
+  if(!a||!b||a.z.length!==b.z.length||a.segments!==b.segments)return false;
+  return a.layers.every((paths,i)=>a.z[i]===b.z[i]&&paths.length===b.layers[i].length&&paths.every((p,j)=>{
+    const q=b.layers[i][j];
+    if(p.width!==q.width||p.h!==q.h||p.filament!==q.filament||p.xy.length!==q.xy.length)return false;
+    if(p.xy!==q.xy)for(let k=0;k<p.xy.length;k++)if(p.xy[k]!==q.xy[k])return false;
+    return true;
+  }));
+}
 function linePreview(d){return d.sourceCount>85000||d.segments>180000}
 function builtin(){
   const raw=JSON.parse($('cubeData').textContent),layers=unpack(raw.path,raw.z.length);
@@ -6247,6 +6300,15 @@ function sampleProbe(i,t,side=probeSide){
   const [x,y]=probeOffset(i,t,side),[nx,ny]=probeNormals[side];
   return 1000*(x*nx+y*ny);
 }
+// A hole can move the nearest exterior point onto a wall far behind the probe.
+// Only connect samples near the previous road; retain both individual readings.
+function probeJump(model,side,i){
+  if(!i)return 0;
+  const a=model.probeSets[side][i-1],b=model.probeSets[side][i];
+  const distance=Math.hypot(b.xy[0]-a.xy[0],b.xy[1]-a.xy[1]);
+  const reach=Math.max(model.layers[i-1][a.path].width,model.layers[i][b.path].width,model.thickness[i])*2;
+  return distance>reach?distance:0;
+}
 // Source time and cumulative XYZ travel share the same ordered G-code intervals.
 function currentMotion(source){
   const track=nozzleTrack(data),count=track.order.length;
@@ -6295,7 +6357,7 @@ function nozzlePosition(d,span,t){
     const {p,layer}=span,elapsed=t-d.starts[layer],j=clamp(upper(p.times,elapsed),1,p.times.length-1),k=2*j;
     const f=clamp((elapsed-p.times[j-1])/(p.times[j]-p.times[j-1]||1),0,1);
     const a=[p.xy[k-2],p.xy[k-1],d.z[layer]-(p.h||p.height||.2)/2];
-    return {tip:[a[0]+f*(p.xy[k]-a[0]),a[1]+f*(p.xy[k+1]-a[1]),d.z[layer]],a,p,j,kind:'挤出',role:p.rank===2?'外墙':p.rank===1?'内墙':'填充或表面'};
+    return {tip:[a[0]+f*(p.xy[k]-a[0]),a[1]+f*(p.xy[k+1]-a[1]),d.z[layer]],a,p,j,layer,kind:'挤出',role:p.rank===2?'外墙':p.rank===1?'内墙':'填充或表面'};
   }
   const buf=d.motion,k=span.k,f=clamp((t-span.start)/(span.end-span.start||1),0,1);
   const tip=[0,1,2].map(a=>buf[k+2+a]+f*(buf[k+5+a]-buf[k+2+a]));
@@ -6389,20 +6451,21 @@ function frame(){
  const probe=data.probeSets[probeSide][selected],path=data.layers[selected][probe.path],j=probe.f<.5?probe.j-1:probe.j;
  const m=5*j,contactIndex=4*j,g=thermal&&path.mapped[m+3]?path.mapped[m+1]:Infinity,area=path.contact[contactIndex+1];
  const delta=selected?disp[selected]-disp[selected-1]:0;
+ const jump=probeJump(data,probeSide,selected);
  $('phase').textContent=local?'附近层　':whole?(thermal?'冷却完成　':'走线完成　'):layerFinished?'本层完成　':printing?'正在打印　':'整件冷却中　';
- $('message').textContent=whole&&!thermal?'整件打印走线已显示。':whole?(selected===0?'这是模型的第一层。':Math.abs(delta)<.05?'这层和下面一层缩得一样多。':'这层比下面一层'+(delta>0?'多缩':'少缩')+fmt(Math.abs(delta))+' µm（'+sideNames[probeSide]+'）。'):layerFinished?'第 '+(selected+1)+' 层走线已播放完。':printing?'第 '+(active+1)+' / '+n+' 层 · '+(motion?motion.kind+(motion.role?' · '+motion.role:''):'等待下一段走线'):'最后一层已经打完，模型仍在冷却。';
+ $('message').textContent=whole&&!thermal?'整件打印走线已显示。':whole?(selected===0?'这是模型的第一层。':jump?'外墙测点移开 '+fmt(jump)+' mm，曲线在此断开。':Math.abs(delta)<.05?'这层和下面一层缩得一样多。':'这层比下面一层'+(delta>0?'多缩':'少缩')+fmt(Math.abs(delta))+' µm（'+sideNames[probeSide]+'）。'):layerFinished?'第 '+(selected+1)+' 层走线已播放完。':printing?'第 '+(active+1)+' / '+n+' 层 · '+(motion?motion.kind+(motion.role?' · '+motion.role:''):'等待下一段走线'):'最后一层已经打完，模型仍在冷却。';
  const loc=local?'已剖开上方，查看第 '+(lo+1)+'–'+(hi+1)+' 层。':'';
  $('detail').textContent=!thermal?loc+'第 '+(selected+1)+' 层 · 走线预览':loc+'第 '+(selected+1)+' 层 · '+(Number.isFinite(g)?'局部覆盖间隔 '+fmt(g)+' 秒':'该处上方未覆盖')+' · '+(path.contact[contactIndex]<0?'接触热床':area===0?'下方悬空':(area<0?'支撑':'下层')+'搭接 '+Math.round(100*Math.abs(area))+'%')+' · '+sideNames[probeSide]+wallReading(disp[selected])+'，'+sideNames[probeSide^1]+wallReading(sampleProbe(selected,t,probeSide^1));
  $('progress').value=Math.round(progress*10000);$('progress').setAttribute('aria-valuetext',clockText(t)+'，'+$('phase').textContent.trim());
  updateClocks(t);
- const raw=whole&&data!==originalModel&&referenceProfile?referenceProfile[probeSide]:null;
+ const raw=whole&&data!==originalModel&&data!==referenceModel&&referenceProfile?referenceProfile[probeSide]:null;
  $('profileKey').hidden=!raw||!thermal;
  smoothingPanel?.selectLayer(data.z[selected]);
  const chartScale=Math.max(disp.reduce((m,u)=>Math.max(m,Math.abs(u)),scale),raw?raw.reduce((m,u)=>Math.max(m,Math.abs(u)),0):0);
- profileState={disp,shown,scale:chartScale,raw};drawProfile(disp,shown,chartScale,raw);showControls();
+ profileState={disp,shown,scale:chartScale,raw};viewport.paintProfile();showControls();
 }
 let chartAxis={},profileState=null;
-function drawProfile(disp,shown,cap,raw){
+function drawProfile(disp,shown,cap,raw,rawAlpha=1){
  const el=$('profile'),box=$('profileBox'),w=box.clientWidth,h=box.clientHeight;if(w<5||h<5)return;
  const d=Math.min(2,devicePixelRatio||1);if(el.width!==Math.round(w*d)||el.height!==Math.round(h*d)){el.width=Math.round(w*d);el.height=Math.round(h*d)}
  const c=el.getContext('2d');c.setTransform(d,0,0,d,0,0);c.clearRect(0,0,w,h);
@@ -6423,14 +6486,15 @@ function drawProfile(disp,shown,cap,raw){
  for(let j=0;j<=(compact?1:2);j++){const u=min+(max-min)*j/(compact?1:2),px=x(u);line([px,top],[px,base],'#403c37');text(String(+u.toFixed(1)),px,base+15,j===0?'left':j===(compact?1:2)?'right':'center')}
  const center=y(data.z[selected]),lo=Math.max(0,selected-3),hi=Math.min(data.z.length-1,selected+3);
  c.fillStyle='#b57c382e';c.fillRect(l,y(data.z[hi])-2,r-l,Math.max(5,y(data.z[lo])-y(data.z[hi])+4));
- if(raw){
-   c.beginPath();c.strokeStyle='#beb7ae';c.setLineDash([4,3]);c.lineWidth=1.5;
-   for(let i=0;i<raw.length;i++){const px=x(raw[i]),py=y((referenceModel||originalModel).z[i]);if(i)c.lineTo(px,py);else c.moveTo(px,py)}
-   c.stroke();c.setLineDash([]);
+ if(raw&&rawAlpha>0){
+   c.globalAlpha=rawAlpha;c.beginPath();c.strokeStyle='#beb7ae';c.setLineDash([4,3]);c.lineWidth=1.5;
+   const baseModel=referenceModel||originalModel;
+   for(let i=0;i<raw.length;i++){const px=x(raw[i]),py=y(baseModel.z[i]);if(i&&!probeJump(baseModel,probeSide,i))c.lineTo(px,py);else c.moveTo(px,py)}
+   c.stroke();c.setLineDash([]);c.globalAlpha=1;
  }
  c.strokeStyle=raw?'#ffac53':'#efbd69';c.lineWidth=2;c.beginPath();let move=true;
  for(let i=0;i<data.z.length;i++){
-   if(progress<1&&!shown[i]){move=true;continue}const px=x(disp[i]),py=y(data.z[i]);if(move)c.moveTo(px,py);else c.lineTo(px,py);move=false;
+   if(progress<1&&!shown[i]){move=true;continue}const px=x(disp[i]),py=y(data.z[i]);if(move||probeJump(data,probeSide,i))c.moveTo(px,py);else c.lineTo(px,py);move=false;
  }
  c.stroke();line([l,center],[r,center],'#e48b4a',[3,3]);c.beginPath();c.fillStyle='#ff9c51';c.arc(x(disp[selected]),center,3.4,0,2*Math.PI);c.fill();
 }
@@ -6516,8 +6580,8 @@ function install(d){
  $('demo').hidden=!d.imported;setScenarioNote();frame();
 }
 function updateFileInfo(){
- const source=data!==originalModel?'平滑后的走线':data.imported?'本地文件':'内置 Voron 示例';
- const timing=!data.imported||data.sameDemo?'运动规划估时':data.normalized?'按切片总时长校准':'按指令进给估时';
+ const source=data!==originalModel&&data!==referenceModel?'平滑后的走线':data.imported?'本地文件':'内置 Voron 示例';
+ const timing=data.layerTiming?'按逐层用时校准':!data.imported||data.sameDemo?'运动规划估时':data.normalized?'按切片总时长校准':'按指令进给估时';
  $('fileInfo').textContent=source+' · '+displayed.sourceCount.toLocaleString('zh-CN')+' 段'+(displayed===data?'模型走线':'墙走线')+' · '+timing+
    (data.usedFilaments.some(id=>!data.filamentColors[id])?' · 未标注的耗材以灰色显示':'')+(linePreview(displayed)?' · 线条预览':'')+(!data.walls?' · 无可识别墙标签':'');
 }
@@ -6609,7 +6673,7 @@ function setSmoothSource(model,file,name,plateInfo,identity=model,plateName=null
  smoothingPanel.setSource({file,name,builtin:model===demo,identity,plateName});
 }
 function updateReference(){
- if(!originalModel||data===originalModel||!canSimulate())return;
+ if(!originalModel||data===originalModel||data===referenceModel||!canSimulate())return;
  const key=JSON.stringify([params,includePull]);
  if(referenceProfile&&key===referenceKey)return;
  const model=referenceModel||originalModel,end=model.total+8*params.tau,identity=t=>t;
@@ -6629,28 +6693,42 @@ function updateReference(){
  }
  referenceProfile=curves;referenceKey=key;
 }
+function correspondingPrintTime(before,after,time){
+ const from=nozzleTrack(before),to=nozzleTrack(after),i=upper(from.ends,time);
+ if(i===from.order.length)return after.total;
+ const id=from.order[i],dst=to.order[i]===id?i:to.order.indexOf(id);
+ if(dst<0)return after.total*time/before.total;
+ const a=nozzleSpan(from,i),b=nozzleSpan(to,dst);
+ if(time<a.start){
+   const oldEnd=i?from.ends[i-1]:0,newEnd=dst?to.ends[dst-1]:0;
+   return newEnd+(b.start-newEnd)*clamp((time-oldEnd)/(a.start-oldEnd||1),0,1);
+ }
+ if(a.p&&b.p&&a.p.times.length===b.p.times.length){
+   const ts=a.p.times,us=b.p.times,elapsed=time-before.starts[a.layer],j=clamp(upper(ts,elapsed),1,ts.length-1);
+   const f=clamp((elapsed-ts[j-1])/(ts[j]-ts[j-1]||1),0,1);
+   return after.starts[b.layer]+us[j-1]+(us[j]-us[j-1])*f;
+ }
+ return b.start+(b.end-b.start)*clamp((time-a.start)/(a.end-a.start||1),0,1);
+}
 function swapPreview(model){
  if(data===model)return;
- const fade=viewport.captureComparison(),height=data.z[selected],walls=$('scope').value==='walls';
+ viewport.beginComparison(model);
+ const height=data.z[selected],walls=$('scope').value==='walls';
  const replayHeight=layerPlayback===null?null:data.z[layerPlayback];
- const oldStart=layerPlayback===null?0:simTime(data.starts[layerPlayback]);
- const layerFraction=replayHeight===null?0:clamp((timeAt(progress)-oldStart)/
-   Math.max(.000001,simTime(data.starts[layerPlayback]+data.duration[layerPlayback])-oldStart),0,1);
+ const clock=timeAt(progress),printTime=clock<endPrint?correspondingPrintTime(data,model,originalTime(clock)):null;
  data=model;displayed=walls&&data.walls?data.walls:data;
  viewport.setModel(displayed,true,true);selected=selectedNear(height);
  layerPlayback=replayHeight===null?null:selectedNear(replayHeight);scenario='raw';$('scenario').value=scenario;
- $('scenario').disabled=data!==originalModel||data.z.length===1;
+ $('scenario').disabled=(data!==originalModel&&data!==referenceModel)||data.z.length===1;
  computeTimeline();
- if(layerPlayback!==null){
-   const start=data.starts[layerPlayback];progress=progressAt(simTime(start+data.duration[layerPlayback]*layerFraction));
- }
- lastTick=null;setScenarioNote();updateFileInfo();frame();fade();
+ if(printTime!==null)progress=progressAt(simTime(printTime));
+ lastTick=null;setScenarioNote();updateFileInfo();frame();
 }
 function cancelSmoothPreview(){
  for(const job of pendingModelReads){job.worker.terminate();job.resolve(null)}
  pendingModelReads.clear();referenceRead=null;previewReads=new Map();
 }
-function readPreviewModel(blob,estimatedDuration){
+function readPreviewModel(blob,estimatedDuration,layerTimes,objectId=originalModel?.objectId,plateInfo=originalPlate){
  return new Promise((resolve,reject)=>{
    const worker=new Worker(workerURL),job={worker,resolve};pendingModelReads.add(job);
    function finish(){worker.terminate();pendingModelReads.delete(job)}
@@ -6659,24 +6737,25 @@ function readPreviewModel(blob,estimatedDuration){
      finish();if(message.error){reject(Error(message.error));return}
      try{resolve(prepare(message.model))}catch(error){reject(error)}
    };
-   worker.postMessage({file:new File([blob],'preview.gcode'),objectId:originalModel.objectId,
-     previewOnly:true,estimatedDuration,plateInfo:originalPlate});
+   worker.postMessage({file:new File([blob],'preview.gcode'),objectId,
+     previewOnly:true,estimatedDuration,layerTimes,plateInfo});
  });
 }
 async function applySmoothPreview(blob,r,current){
- if(!r.changed){swapPreview(originalModel);return}
  const original=originalModel,cache=previewReads;
- if(!referenceModel&&(original===demo||original.sameDemo)){
-   referenceRead??=Promise.resolve(originalFile()).then(input=>original===originalModel?readPreviewModel(input,original.total):null)
+ if(!referenceModel&&original.layerTiming)referenceModel=original;
+ if(!referenceModel){
+   referenceRead??=Promise.resolve(originalFile()).then(input=>original===originalModel?readPreviewModel(input,original.total,{heights:r.heights,seconds:r.before}):null)
      .catch(error=>{if(original===originalModel)referenceRead=null;throw error});
    const model=await referenceRead;if(!model||original!==originalModel)return;
-   referenceModel=model;
+   model.name=original.name;model.imported=original.imported;referenceModel=model;
  }
  if(!current())return;
+ if(!r.changed){swapPreview(referenceModel||original);return}
  let read=cache.get(blob);
  if(!read){
    const duration=Math.max(.001,original.total+r.afterTotal-r.beforeTotal);
-   read=readPreviewModel(blob,duration).catch(error=>{cache.delete(blob);throw error});
+   read=readPreviewModel(blob,duration,{heights:r.heights,seconds:r.after}).catch(error=>{cache.delete(blob);throw error});
    cache.set(blob,read);
    // Keep the current comparison ready to toggle. Older G-code and time
    // curves remain in the plate cache even for multi-million-segment models.
@@ -6685,15 +6764,26 @@ async function applySmoothPreview(blob,r,current){
  const model=await read;
  if(model&&current()){model.name=original.name;swapPreview(model)}
 }
-smoothingPanel=createSmoothingPanel({apply:applySmoothPreview,clear:()=>swapPreview(originalModel),
+smoothingPanel=createSmoothingPanel({apply:applySmoothPreview,clear:()=>swapPreview(referenceModel||originalModel),
  cancelPreview:cancelSmoothPreview,inspect:z=>explore(selectedNear(z))});
-const demo=builtin();$('demo').onclick=()=>{cancelImport();install(demo);setSmoothSource(demo,voronGcodeBlob,'Voron_Design_Cube_v8',{});loadedFile=null;loadedPlate=null;announceStatus('')};
+let demo;$('demo').onclick=()=>{cancelImport();install(demo);setSmoothSource(demo,voronGcodeBlob,'Voron_Design_Cube_v8',{});loadedFile=null;loadedPlate=null;announceStatus('')};
 $('viewport').ondragover=e=>{if([...e.dataTransfer.types].includes('Files'))e.preventDefault()};
 $('viewport').ondrop=e=>{e.preventDefault();if(e.dataTransfer.files[0])readFile(e.dataTransfer.files[0])};
 $('helpLink').onclick=()=>{$('basis').open=true};
 document.addEventListener('visibilitychange',()=>{if(document.hidden&&playing)pause()});
 new ResizeObserver(()=>{
- if(profileState){const {disp,shown,scale,raw}=profileState;drawProfile(disp,shown,scale,raw)}
+ viewport.paintProfile();
 }).observe($('profileBox'));
-fillFields();$('paramNote').textContent=assumptions;install(demo);setSmoothSource(demo,voronGcodeBlob,'Voron_Design_Cube_v8',{});
+async function loadExample(){
+ const main=document.querySelector('main');main.inert=true;
+ announceStatus('正在读取 Voron Cube 的打印走线…');
+ try{
+   const {before,heights}=layerSmoothingExample.result;
+   demo=await readPreviewModel(await voronGcodeBlob(),0,{heights,seconds:before});
+   demo.name='Voron Design Cube V8';demo.imported=false;
+ }catch{demo=builtin()}
+ fillFields();$('paramNote').textContent=assumptions;install(demo);
+ setSmoothSource(demo,voronGcodeBlob,'Voron_Design_Cube_v8',{});main.inert=false;announceStatus('');
+}
+void loadExample();
 })();</script></body></html>

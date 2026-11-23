@@ -27,7 +27,6 @@
 #calculateStrength{color:var(--accent);border-color:#856540}
 #smoothSwitch:not([role=switch]) i{display:none}
 #smoothSwitch:not([role=switch]){justify-content:center;border-color:#ab7946;color:#ffcc90}
-.comparisonFrame{position:absolute;inset:0;z-index:1;width:100%;height:100%;pointer-events:none}
 .stageBottom,.pin{z-index:2}
 @media(prefers-reduced-motion:no-preference){
  .smoothPanel:not([hidden]){animation:openSmooth .24s ease-out}
