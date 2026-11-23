@@ -1,6 +1,13 @@
 /* The exported bytes and measured layer times belong to one plate and engine revision. */
 window.createPlateSmoothingCache = (() => {
   let database, engineHash;
+  // These two tested worker builds add curve inputs, with byte-identical G-code
+  // output to 00caeca. Keep that release's exact results for LF and CRLF copies.
+  // An unrecognized future engine continues to get its own cache namespace.
+  const compatibleExports=new Map([
+    ['9c0f42166163c2d51a40b3aae3b181a62b8803484087b9ab4ac7ea5402090f6a','8a625a2984d3e0bccd0be352d656a24b5296ba4b65566bf9b475714c9f6612e7'],
+    ['fed157147f3a45b169d459211ebebfb2ce78038cb50dcd58bfa809c63f8ac3f1','6e809312018379fdaa4ab1902c7fab2843064010b0d9577ba1bfe9d4161a96cd']
+  ]);
   const digest = async bytes => Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',bytes)),
     value=>value.toString(16).padStart(2,'0')).join('');
   function open(){
@@ -20,7 +27,8 @@ window.createPlateSmoothingCache = (() => {
         const db=await open();if(!db)return null;
         engineHash ||= digest(new TextEncoder().encode(LayerSmoothingWorker.cacheSignature()));
         const plate=source.builtin ? layerSmoothingExample.sha256 : await digest(await (await source.file()).arrayBuffer());
-        return {db,prefix:[await engineHash,plate]};
+        const engine=await engineHash;
+        return {db,prefix:[compatibleExports.get(engine)||engine,plate]};
       })().catch(()=>null);
     }
     async function access(mode,key,value){

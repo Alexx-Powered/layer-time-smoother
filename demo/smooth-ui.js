@@ -4,7 +4,8 @@ window.createSmoothingPanel = function ({apply, clear, cancelPreview, inspect}) 
   const panel = el('smoothPanel'), slider = el('strength'), menu = el('exportMenu');
   const svg = el('timeCurve'), status = el('smoothStatus');
   let plate, enabled=false, selection=0, strength=null, current=null, chart=null, layer=0, timer;
-  let output=null, displayRevision=0, animation=0, painted=[], opacity=0;
+  let output=null, applied=null, displayRevision=0, animation=0, painted=[], opacity=0;
+  let previewFrame=0, exactRevision=-1, retry=false;
   const keyFor = strength => strength===null?'auto':String(strength);
   const reducedMotion=matchMedia('(prefers-reduced-motion: reduce)');
   function exportReady(available) {
@@ -37,6 +38,7 @@ window.createSmoothingPanel = function ({apply, clear, cancelPreview, inspect}) 
     cursor.setAttribute('x1',chartX(layer));cursor.setAttribute('x2',chartX(layer));
     el('layerReadout').textContent='第 '+(layer+1)+' 层　原始 '+chart.before[layer].toFixed(1)+' 秒 · 平滑 '+chart.after[layer].toFixed(1)+' 秒';
   }
+  let previewCurve=false;
   function drawChart(animate=false) {
     cancelAnimationFrame(animation);svg.replaceChildren();
     if (!chart?.before.length) return;
@@ -62,7 +64,7 @@ window.createSmoothingPanel = function ({apply, clear, cancelPreview, inspect}) 
     add('text',{x:left,y:151},'第 1 层');
     if(count>1) add('text',{x:right,y:151,'text-anchor':'end'},'第 '+count+' 层');
     const points=values=>values.map((s,i)=>chartX(i).toFixed(2)+','+y(s).toFixed(2)).join(' ');
-    const target=enabled?chart.after:chart.before,alpha=enabled?1:0;
+    const show=enabled||previewCurve,target=show?chart.after:chart.before,alpha=show?1:0;
     const line=add('polyline',{fill:'none',stroke:'#ffac53','stroke-width':2});
     add('polyline',{points:points(chart.before),fill:'none',stroke:'#beb7ae','stroke-width':1.4,'stroke-dasharray':'5 4'});
     const dot=count===1?add('circle',{cx:chartX(0),r:2.5,fill:'#ffac53'}):null;
@@ -95,8 +97,8 @@ window.createSmoothingPanel = function ({apply, clear, cancelPreview, inspect}) 
   new ResizeObserver(()=>{
     if(svg.clientWidth!==lastChartWidth){lastChartWidth=svg.clientWidth;drawChart()}
   }).observe(svg);
-  function display(entry,animate){
-    chart=entry.result;drawChart(animate);
+  function display(result,animate,preview=false){
+    chart=result;previewCurve=preview;drawChart(animate);
     const delta=chart.afterTotal-chart.beforeTotal;
     el('smoothTotal').textContent=formatTime(chart.afterTotal);
     const sign=delta<-.05?'−':delta>.05?'+':'';
@@ -105,15 +107,15 @@ window.createSmoothingPanel = function ({apply, clear, cancelPreview, inspect}) 
   function controls(){
     const entry=plate.entries.get(strength),busy=plate.jobs.has(strength);
     const button=el('smoothSwitch');
-    if(entry){
+    if(entry||!panel.hidden){
       button.setAttribute('role','switch');
-      button.setAttribute('aria-checked',String(enabled&&current===entry));
+      button.setAttribute('aria-checked',String(enabled));
     }else{
       button.removeAttribute('role');button.removeAttribute('aria-checked');
     }
-    button.disabled=!entry&&busy;
-    el('smoothAction').textContent=entry?'层时间平滑':busy?'正在计算…':'计算平滑层时间';
-    el('calculateStrength').hidden=!!entry;
+    button.disabled=false;
+    el('smoothAction').textContent=entry||!panel.hidden?'层时间平滑':'计算平滑层时间';
+    el('calculateStrength').hidden=!retry;
     el('calculateStrength').disabled=busy;
     el('smoothAuto').setAttribute('aria-pressed',String(strength===null));
     const selected=entry?.result.selected;
@@ -124,7 +126,8 @@ window.createSmoothingPanel = function ({apply, clear, cancelPreview, inspect}) 
   // A single worker owns this plate. Serialize calculation + export so the
   // Python solver's most recent result always matches the bytes being saved.
   function makePlate(source){
-    let input,worker,ready,serial=Promise.resolve(),requestId=0,closed=false;
+    let input,worker,ready,basisRead,planner,serial=Promise.resolve(),requestId=0,closed=false;
+    const curves=new Map();
     const requests=new Map();
     const file=()=>input ||= Promise.resolve().then(source.file);
     const store=createPlateSmoothingCache({...source,file});
@@ -133,7 +136,7 @@ window.createSmoothingPanel = function ({apply, clear, cancelPreview, inspect}) 
       state.entries.set(value,entry);
       for(const [key,older] of state.entries){
         if(state.entries.size<=3)break;
-        if(older.saved&&key!==value&&key!==strength&&older!==current)state.entries.delete(key);
+        if(key!==value&&key!==strength&&older!==current)state.entries.delete(key);
       }
     }
     function closeWorker(){
@@ -141,7 +144,7 @@ window.createSmoothingPanel = function ({apply, clear, cancelPreview, inspect}) 
       for(const req of requests.values())req.reject(Error('当前切片已切换。'));
       requests.clear();
     }
-    state.close=()=>{closed=true;closeWorker()};
+    state.close=()=>{closed=true;planner?.close();closeWorker()};
     function request(type,body,transfer=[]){
       if(closed||!worker)return Promise.reject(Error('当前切片已切换。'));
       const id=++requestId;
@@ -154,32 +157,58 @@ window.createSmoothingPanel = function ({apply, clear, cancelPreview, inspect}) 
       worker=LayerSmoothingWorker.create();
       worker.onmessage=({data:m})=>{
         const req=requests.get(m.id);if(!req)return;
-        if(m.type==='status'||m.type==='preview')return;
+        if(m.type==='status'){
+          if(plate===state&&enabled&&!chart)setStatus(m.message);
+          return;
+        }
         requests.delete(m.id);
         if(m.type==='error')req.reject(Error(m.message));else req.resolve(m);
       };
       worker.onerror=()=>closeWorker();
       const bytes=await (await file()).arrayBuffer();
-      await request('load',{bytes},[bytes]);
+      const {basis}=await request('load',{bytes},[bytes]);
+      void store.write('curveInputs',basis);
+      return basis;
     }
+    const load=()=>ready ||= start().catch(error=>{closeWorker();throw error});
+    function inputs(){
+      if(source.builtin)return layerSmoothingExample.basis;
+      return basisRead ||= store.read('curveInputs').then(saved=>{
+        if(closed)throw Error('当前切片已切换。');
+        return saved||load();
+      }).catch(error=>{basisRead=null;throw error});
+    }
+    state.prepareCurve=inputs;
+    state.preview=async(value,wanted)=>{
+      if(curves.has(value))return curves.get(value);
+      const basis=await inputs();
+      if(closed||!wanted())return null;
+      planner ||= LayerSmoothingWorker.createPlanner(basis);
+      const curve=await planner.run(value);
+      if(curve&&!closed){
+        curves.set(value,curve);
+        if(curves.size>12)curves.delete(curves.keys().next().value);
+      }
+      return curve;
+    };
     state.find=async value=>{
       if(state.entries.has(value))return state.entries.get(value);
       const saved=await store.read(keyFor(value));
       if(saved&&!closed&&!state.entries.has(value))retain(value,saved);
       return state.entries.get(value);
     };
-    state.solve=value=>{
+    state.solve=(value,wanted)=>{
       if(state.jobs.has(value))return state.jobs.get(value);
       async function work(){
-        if(closed)throw Error('当前切片已切换。');
+        if(closed||!wanted())return null;
         const existing=await state.find(value);if(existing)return existing;
         let r,blob=null;
         if(source.builtin&&value===null){
           const cached=await LayerSmoothingWorker.getDemoAuto();r=cached.result;
           if(r.changed)blob=new Blob([cached.bytes],{type:'application/octet-stream'});
         }else{
-          if(!ready)ready=start().catch(error=>{closeWorker();throw error});
-          await ready;
+          await load();
+          if(closed||!wanted())return null;
           r=await request('calculate',{strength:value});
           if(r.changed){
             const reply=await request('export',{strength:value});
@@ -188,8 +217,8 @@ window.createSmoothingPanel = function ({apply, clear, cancelPreview, inspect}) 
         }
         const entry={result:r,blob};
         if(!closed){
-          entry.saved=!!(await store.write(keyFor(value),{...entry,saved:true}));
-          if(!closed)retain(value,entry);
+          retain(value,entry);
+          void store.write(keyFor(value),{...entry,saved:true}).then(saved=>{entry.saved=!!saved});
         }
         return entry;
       }
@@ -199,80 +228,99 @@ window.createSmoothingPanel = function ({apply, clear, cancelPreview, inspect}) 
     return state;
   }
   async function present(entry,on,revision){
-    if(revision!==selection)return;
-    const owner=plate;
+    if(!entry||revision!==selection)return;
+    const owner=plate,transition=++displayRevision;
+    exactRevision=revision;retry=false;
+    const changed=current!==entry||enabled!==on||previewCurve||(on&&applied!==entry);
     const blob=entry.blob||await owner.file();
-    if(revision!==selection)return;
-    const changed=current!==entry||enabled!==on;
-    current=entry;output=blob;enabled=on;
-    controls();
-    const note=entry.saved?'结果已保存到本机。':'本次打开期间复用此结果。';
-    const label=!on?'显示原始走线。'+note:entry.result.changed?'显示平滑走线。'+note:'本档保留原始进给。'+note;
-    if(!changed){display(entry,false);setStatus(label);return}
-    const transition=++displayRevision;
-    setStatus(on?'正在准备平滑走线…':label);
-    try{
-      if(on)await apply(blob,entry.result,()=>transition===displayRevision&&enabled);
-      else clear();
-      if(owner!==plate||transition!==displayRevision)return;
-      display(entry,true);
-      if(selection===revision)setStatus(label);
-    }catch(error){
-      if(owner!==plate||transition!==displayRevision)return;
-      enabled=false;clear();controls();display(entry,true);
-      setStatus('平滑结果已就绪，3D 预览读取失败。可打开开关重试。'+error.message);
+    if(revision!==selection||transition!==displayRevision)return;
+    current=entry;enabled=on;output=blob;controls();display(entry.result,changed);
+    if(!on){applied=null;clear();setStatus('显示原始走线。平滑结果可复用。');return}
+    if(applied!==entry){
+      setStatus('层时间已按走线复核，正在更新 3D。');
+      try{
+        await apply(output,entry.result,()=>revision===selection&&transition===displayRevision&&enabled);
+        if(revision!==selection||transition!==displayRevision)return;
+        applied=entry;
+      }catch(error){
+        if(revision!==selection||transition!==displayRevision)return;
+        applied=null;enabled=false;clear();controls();display(entry.result,true);
+        setStatus('层时间已复核，3D 读取失败。可重新打开开关。'+error.message);return;
+      }
     }
-  }
-  async function calculate(){
-    if(!plate||plate.jobs.has(strength))return;
-    const owner=plate,value=strength,revision=++selection;
-    clearTimeout(timer);panel.hidden=false;
-    const task=owner.solve(value);
-    controls();setStatus(value===null?'正在为当前盘自动选参…':'正在计算平滑度 '+value+'…');
-    try{
-      const entry=await task;if(revision!==selection)return;
-      remember(owner,value);
-      await present(entry,true,revision);
-    }catch(error){if(revision===selection)setStatus(error.message+'　可再次点击计算。')}
-    finally{if(owner===plate)controls()}
+    setStatus(entry.result.changed?'显示平滑走线和复核后的层时间。':'此档保留原始进给。');
   }
   function remember(owner,value){
     if(owner.last===value)return;
     owner.last=value;void owner.store.write('last',{strength:value});
   }
+  function estimate(revision){
+    cancelAnimationFrame(previewFrame);
+    const owner=plate,value=strength;
+    const wanted=()=>revision===selection&&owner===plate&&exactRevision!==revision;
+    previewFrame=requestAnimationFrame(async()=>{
+      if(!wanted())return;
+      try{
+        const known=owner.entries.get(value);
+        const curve=known?.result||await owner.preview(value,wanted);
+        if(!curve||!wanted())return;
+        display(curve,false,true);
+        setStatus(known?'此档已有走线复核结果。':!enabled?'调速预估 · 3D 当前显示原始走线。':
+          owner.jobs.has(value)?'调速预估 · 正在后台复核走线。':'调速预估 · 松手后更新 3D。');
+      }catch(error){if(wanted())setStatus('层时间预估暂不可用。'+error.message)}
+    });
+  }
+  async function calculate(){
+    const owner=plate,value=strength,revision=selection;
+    if(!owner||!enabled)return;
+    const wanted=()=>owner===plate&&value===strength&&enabled;
+    retry=false;controls();
+    if(chart&&previewCurve)setStatus('调速预估 · 正在后台复核走线。');
+    try{
+      const entry=owner.entries.get(value)||await owner.solve(value,wanted);
+      if(!entry||revision!==selection)return;
+      remember(owner,value);await present(entry,true,revision);
+    }catch(error){
+      if(revision===selection){retry=true;setStatus('走线复核失败。'+error.message)}
+    }finally{if(owner===plate)controls()}
+  }
   function choose(value){
     if(value===strength)return;
-    strength=value;
-    const revision=++selection;clearTimeout(timer);controls();
-    const known=plate.entries.get(value);
-    if(known){
-      remember(plate,value);void present(known,enabled,revision);return;
+    clearTimeout(timer);displayRevision++;strength=value;retry=false;output=null;
+    const revision=++selection;
+    controls();estimate(revision);
+  }
+  function commitChoice(){
+    clearTimeout(timer);
+    if(enabled)timer=setTimeout(calculate,140);
+    else{
+      const owner=plate,value=strength,revision=selection;
+      void owner.find(value).then(async entry=>{
+        if(!entry||revision!==selection)return;
+        const blob=entry.blob||await owner.file();
+        if(revision!==selection)return;
+        current=entry;output=blob;controls();
+      }).catch(()=>{});
     }
-    const previous=current?.result.strength;
-    const label=previous==null?'自动档':'平滑度 '+previous;
-    setStatus((current?'时间数据仍为'+label+'。':'')+'点击「计算平滑层时间」应用新参数。');
-    async function reuse(){
-      const owner=plate;
-      try{
-        const entry=await (owner.jobs.get(value)||owner.find(value));
-        if(revision===selection&&entry){
-          remember(owner,value);
-          await present(entry,enabled,revision);
-        }
-      }catch(error){if(revision===selection)setStatus(error.message)}
-    }
-    timer=setTimeout(reuse,120);
   }
   el('smoothSwitch').onclick=()=>{
+    clearTimeout(timer);cancelAnimationFrame(previewFrame);displayRevision++;
+    const revision=++selection;
+    panel.hidden=false;enabled=!enabled;retry=false;controls();
+    if(!enabled){
+      applied=null;clear();
+      if(chart)display(chart,true);
+      setStatus('显示原始走线。');return;
+    }
     const entry=plate.entries.get(strength);
-    if(!entry){void calculate();return}
-    clearTimeout(timer);panel.hidden=false;
-    const on=current===entry?!enabled:true;
-    remember(plate,strength);void present(entry,on,++selection);
+    if(entry){remember(plate,strength);void present(entry,true,revision);return}
+    setStatus('正在准备当前盘的层时间…');
+    estimate(revision);void calculate();
   };
   el('calculateStrength').onclick=calculate;
   slider.oninput=()=>choose(slider.valueAsNumber);
-  el('smoothAuto').onclick=()=>choose(null);
+  slider.onchange=commitChoice;
+  el('smoothAuto').onclick=()=>{choose(null);commitChoice()};
   function name(){
     const suffix=strength===null?'auto':String(strength);
     return plate.name+'-smooth-'+suffix+'.gcode';
@@ -294,23 +342,22 @@ window.createSmoothingPanel = function ({apply, clear, cancelPreview, inspect}) 
   document.addEventListener('click',e=>{if(!e.target.closest('.exportWrap'))closeMenu()});
   document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!menu.hidden){closeMenu();el('exportMenuButton').focus()}});
   return {setSource(next){
-    clearTimeout(timer);cancelPreview();displayRevision++;
+    clearTimeout(timer);cancelAnimationFrame(previewFrame);cancelPreview();displayRevision++;applied=null;retry=false;
     const revision=++selection;
     if(plate&&next.identity===plate.identity&&next.plateName===plate.plateName){
       const entry=plate.entries.get(strength),on=enabled;
       current=null;enabled=false;output=null;controls();
       if(entry)void present(entry,on,revision);
-      else if(plate.jobs.has(strength)){
-        void plate.jobs.get(strength).then(e=>present(e,true,revision))
-          .catch(error=>{if(revision===selection)setStatus(error.message+'　可再次点击计算。')})
-          .finally(()=>{if(revision===selection)controls()});
-      }
+      else if(on){enabled=true;controls();estimate(revision);void calculate()}
       return;
     }
     plate?.close();plate=makePlate(next);current=null;enabled=false;strength=null;output=null;chart=null;
     slider.value=65;panel.hidden=true;painted=[];opacity=0;drawChart();controls();
     el('layerReadout').textContent='';el('smoothTotal').textContent=el('smoothCost').textContent='—';
     const owner=plate;
+    // Imported plates can prepare the immutable motion inputs while the user
+    // inspects the model. The bundled cube already ships with these arrays.
+    if(!owner.builtin)void owner.prepareCurve().catch(()=>{});
     (async()=>{
       const last=await owner.store.read('last');if(!last||revision!==selection)return;
       const entry=await owner.find(last.strength);if(!entry||revision!==selection)return;

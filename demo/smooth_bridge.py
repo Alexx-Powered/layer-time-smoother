@@ -1,7 +1,7 @@
 """Glue shared by the static demo worker and the precomputed Voron example."""
 import math
 
-from automatic_curve import original_total, select_curve
+from automatic_curve import select_curve
 from infill_speed_smoothing import INFILL, prepare_input
 from layer_uniformity import curved_targets
 from slicer_postprocess import smooth_bytes
@@ -29,10 +29,15 @@ class Preview:
         self.source = source
         self.prepared = prepare_input(source, motion_cache=BrowserMotionCache(cache) if cache is not None else None)
         _, _, self.heights, _, _, _, self.before, self.editable, _, self.fastest = self.prepared
-        self.total, _ = original_total(source, self.before)
         self.plan, self.decision = select_curve(source, self.before, self.fastest, self.editable)
+        self.total = self.decision["original"]["total_s"]
         self.current = None
         self.output = None
+
+    def planning_inputs(self):
+        return dict(before=self.before, heights=self.heights, beforeTotal=self.total,
+                    fastest=self.fastest, editable=self.editable,
+                    autoStrength=self.decision["planned"]["strength"])
 
     def summary(self, strength, selected, after, changed, total):
         return dict(strength=strength, selected=selected, before=self.before, after=after,

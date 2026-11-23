@@ -106,7 +106,8 @@
             py.globals.delete("input_buffer");
           }
           loaded = true;
-          postMessage({type:"loaded", id});
+          const basis=JSON.parse(py.runPython("json.dumps(model.planning_inputs())"));
+          postMessage({type:"loaded", id, basis});
           return;
         }
         if (!loaded) throw Error("请先载入原始切片文件。");
@@ -114,11 +115,11 @@
           throw Error("平滑度应在 0 到 100 之间。");
         }
         python.globals.set("chosen", strength);
-        if (type === "preview" || type === "calculate") {
+        if (type === "preview") {
           const preview = JSON.parse(python.runPython("json.dumps(model.preview(chosen))"));
           postMessage({...preview, type:"preview", id});
-          if (type === "preview") return;
-        } else if (type !== "export") {
+          return;
+        } else if (type !== "calculate" && type !== "export") {
           throw Error("未知的平滑操作。");
         }
         status(id, "正在按实际导出的进给重算各层用时…");
@@ -156,6 +157,48 @@
         JSON.stringify(runtimeURL) + "," + JSON.stringify(globalThis.layerSmoothingPackage) + ");";
       const url = URL.createObjectURL(new Blob([source], {type:"text/javascript"}));
       try { return new Worker(url); } finally { URL.revokeObjectURL(url); }
+    },
+    // Keep the Orca curve solver responsive even while the separate Python
+    // worker is checking a large export. Only the most recent waiting grade runs.
+    createPlanner(basis) {
+      function startPlanner(){
+        let basis;
+        self.onmessage=({data})=>{
+          if(data.basis){basis=data.basis;return}
+          try{
+            const chosen=data.value===null?basis.autoStrength:data.value;
+            const after=chosen===null?basis.before:layerTargets(basis.fastest,basis.editable,chosen);
+            const delta=after.reduce((sum,t,i)=>sum+t-basis.before[i],0);
+            postMessage({after,afterTotal:basis.beforeTotal+delta});
+          }catch(e){postMessage({error:e.message})}
+        };
+      }
+      const url=URL.createObjectURL(new Blob([layerTargets.toString(),"\n",smoothRun.toString(),"\n(",startPlanner.toString(),")()"],{type:"text/javascript"}));
+      let worker;
+      try{worker=new Worker(url)}finally{URL.revokeObjectURL(url)}
+      worker.postMessage({basis});
+      let active=null,waiting=null,closed=false;
+      function start(job){active=job;worker.postMessage({value:job.value})}
+      function close(error){
+        closed=true;worker.terminate();
+        for(const job of [active,waiting])if(job){if(error)job.reject(error);else job.resolve(null)}
+        active=waiting=null;
+      }
+      worker.onmessage=({data})=>{
+        if(!active)return;
+        if(data.error)active.reject(Error(data.error));else active.resolve({...data,before:basis.before,heights:basis.heights,beforeTotal:basis.beforeTotal});
+        active=null;
+        if(waiting){const next=waiting;waiting=null;start(next)}
+      };
+      worker.onerror=e=>close(Error(e.message||'层时间预估失败'));
+      return {
+        run(value){return new Promise((resolve,reject)=>{
+          if(closed){resolve(null);return}
+          const job={value,resolve,reject};
+          if(!active)start(job);else{waiting?.resolve(null);waiting=job}
+        })},
+        close:()=>close()
+      };
     },
     async getDemoAuto() {
       const cache = globalThis.layerSmoothingExample;

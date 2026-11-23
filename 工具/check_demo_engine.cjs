@@ -43,7 +43,7 @@ async function verify() {
     return new Promise((resolve, reject) => {
       const job = ++id;
       worker.onmessage = ({data}) => {
-        if (data.id !== job || data.type === "status" || data.type === "preview") return;
+        if (data.id !== job || data.type === "status" || (data.type === "preview" && type !== "preview")) return;
         if (data.type === "error") reject(Error(data.message));
         else resolve(data);
       };
@@ -53,8 +53,19 @@ async function verify() {
   try {
     const bytes = await voronGcodeBytes();
     assert.equal(hash(bytes), layerSmoothingExample.sha256);
-    await request("load", {bytes});
+    const {basis}=await request("load", {bytes});
     const cached = await LayerSmoothingWorker.getDemoAuto();
+    for(const inputs of [basis,layerSmoothingExample.basis]){
+      const planner=LayerSmoothingWorker.createPlanner(inputs);
+      try{
+        for(const strength of [0,65.5,100,null]){
+          const plan=await planner.run(strength),native=await request("preview",{strength});
+          assert.equal(plan.after.length,native.after.length);
+          assert(plan.after.every((time,i)=>Math.abs(native.after[i]-time)<1e-6));
+          assert(Math.abs(plan.afterTotal-native.afterTotal)<1e-5);
+        }
+      }finally{planner.close()}
+    }
     for (const strength of [null, 65.5]) {
       const actual = await request("calculate", {strength});
       const file = await request("export", {strength});
