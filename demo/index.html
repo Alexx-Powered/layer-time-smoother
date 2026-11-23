@@ -28,7 +28,7 @@
 <main class="shell"><div class="intro"><div><h1>冷却层纹演示</h1><p>逐层用时决定主要趋势，局部覆盖时间和填充拉扯修正外墙位移。</p></div><div class="choose"><label for="material">材料</label><select id="material"><option value="pla">PLA</option><option value="petg" selected>PETG</option><option value="plaCF">PLA-CF</option><option value="petgHF">PETG-HF</option><option value="tpu95">TPU-95A</option><option value="tpu75">TPU-75A</option><option value="pa6CF">PA6-CF</option><option value="abs">ABS</option><option value="custom">自定义材料</option></select><button id="upload" class="upload"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 15V3m-5 5 5-5 5 5M4 15v5h16v-5"/></svg>导入 G-code</button><input id="file" type="file" accept=".gcode,.gco,.gc,.gcode.3mf,.3mf" hidden></div></div>
 <p id="materialNote" class="status" role="status" hidden></p><div id="fileStatus" class="status" role="status" hidden></div><div id="plateBox" class="plateBox" hidden><label for="plate">选择打印盘</label><select id="plate"></select><button id="loadPlate">载入这盘</button></div>
 <div class="lab"><div class="core"><section class="viewport" id="viewport" aria-label="模型预览"><canvas id="bedGrid" class="bedGrid" aria-hidden="true"></canvas><canvas id="stage" class="stage" tabindex="0" aria-label="打印模型。左键拖动旋转，按住中键拖动平移，滚轮缩放。方向键旋转，Shift 加方向键平移，Home 复位。"></canvas><div class="stageHead"><div class="modelTitle"><h2 id="modelTitle"></h2><small id="dimensions"></small><br><span id="fallback" class="fallback" hidden>二维投影</span></div><div class="viewSwitches" role="group" aria-label="3D 视图开关"><button id="amplify" type="button" role="switch" aria-checked="true" aria-label="效果放大" title="切换原始位移与 20 倍显示" class="switch"><i aria-hidden="true"></i><span id="ampText">效果放大</span></button><button type="button" class="switch fieldSwitch" id="color" role="switch" aria-checked="false"><i aria-hidden="true"></i><span>内缩着色</span></button><button type="button" class="switch" id="smoothSwitch" aria-controls="smoothPanel"><i aria-hidden="true"></i><span id="smoothAction">计算平滑层时间</span></button></div></div>
-<i id="freshLine" aria-hidden="true" hidden></i><div class="pin" id="pin" hidden><i></i><b id="pinZ"></b></div><div class="stageBottom"><div><div class="tools"><button id="zout" class="icon" aria-label="缩小" title="缩小">−</button><button id="zin" class="icon" aria-label="放大" title="放大">＋</button><button id="home" title="恢复初始视角">复位</button></div><small>左键旋转 · 中键平移 · 滚轮缩放</small></div><div class="colorbar"><div class="filamentKey" id="filamentKey" aria-label="切片耗材颜色"></div><div class="legend" id="legend" title="蓝色内缩少，红色内缩多。两端数值取自原始走线冷却后的外墙，播放和平滑前后共用同一色阶。" hidden><span>内缩</span><span id="colorLow"></span><i aria-hidden="true"></i><span id="colorHigh"></span></div></div></div></section>
+<i id="freshLine" aria-hidden="true" hidden></i><div class="pin" id="pin" hidden><i></i><b id="pinZ"></b></div><div class="stageBottom"><div><div class="tools"><button id="zout" class="icon" aria-label="缩小" title="缩小">−</button><button id="zin" class="icon" aria-label="放大" title="放大">＋</button><button id="home" title="恢复初始视角">复位</button></div><small>左键旋转 · 中键平移 · 滚轮缩放</small></div><div class="colorbar"><div class="filamentKey" id="filamentKey" aria-label="切片耗材颜色"></div><div class="legend" id="legend" title="蓝色内缩少，红色内缩多。颜色表示区域自身的收缩量。色阶取自原始走线冷却后的外墙，播放和平滑前后共用。" hidden><span>内缩</span><span id="colorLow"></span><i aria-hidden="true"></i><span id="colorHigh"></span></div></div></div></section>
 <aside class="rail"><h2 id="railTitle">沿层高看层纹</h2><select id="probeSide" aria-label="观察哪一侧的外墙" title="按打印板方向选择外墙"><option value="0">前侧（−Y）</option><option value="1">后侧（+Y）</option><option value="2">左侧（−X）</option><option value="3">右侧（+X）</option></select><small>上下拖动，查看附近层</small><div id="profileBox" class="profileBox"><canvas id="profile" class="profile" tabindex="0" role="slider" aria-label="沿模型高度查看附近层" aria-orientation="vertical"></canvas></div><div id="profileKey" class="profileKey" hidden><span class="keyOriginal">原始</span><span class="keySmooth">平滑后</span></div><div class="railFoot" id="railFoot"><span>向右 = 向内</span><b title="1 微米等于 0.001 毫米">µm</b></div></aside></div>
 <div class="transport"><button id="play" class="primary"><span aria-hidden="true" id="playSym">▶</span><span id="playLabel">播放完整过程</span></button><input id="progress" aria-label="打印与冷却进度" type="range" min="0" max="10000" value="10000"><div class="playClocks"><span id="previewClock"></span><span id="clock" class="clock"></span></div><select id="speed" aria-label="播放速度"><option value=".5">0.5× 预览</option><option value="1">1× 预览</option><option value="2">2× 预览</option><option value="3" selected>3× 预览</option><option value="4">4× 预览</option><option value="0">打印机原速</option><option value="-1">整件快览（12 秒）</option></select></div>
 <div class="inspect"><div><label for="height">查看高度</label><div class="heightCtl"><button id="down" aria-label="降低一层">−</button><input type="number" id="height" step="any" inputmode="decimal"><span>mm</span><button id="up" aria-label="升高一层">＋</button></div></div><div class="insight"><b id="phase"></b><span id="message"></span><small id="detail"></small></div><div class="layerActions"><button class="plain" id="whole">查看附近层</button><button class="plain" id="layerPlay" title="从当前层开头逐线回放">播放这一层</button></div></div></div>
@@ -59,8 +59,8 @@
 <p><strong>TPU-95A、TPU-75A</strong> 的数字表示邵氏 A 硬度。95A 参考配方的玻璃化温度为 −25 °C，推荐喷嘴温度为 220 °C。75A 参考配方推荐 240–250 °C。两种 TPU 暂无适用的收缩参数，预览沿用原走线与时序，按 PLA 的收缩率及热参数演示。预测弹性外墙冷却后的位移还需描述硬段、软段和随时间松弛的应力。<a href="https://move.forward-am.com/hubfs/AES%20Documentation/Flexible%20Filaments/TPU%2095A/TDS/Ultrafuse_TPU-95A_TDS_EN_v1.0.pdf?hsLang=en">95A 配方数据表</a> · <a href="https://kexcelled3d.com/products/the-k8-tpu-75a">75A 配方资料</a> · <a href="https://doi.org/10.3390/polym13203551">打印 TPU 的热转变实验</a></p></section>
 <section><h3>走线、冷却和附着怎么计算？</h3>
 <p>「预览」显示观看用时，3× 会把 1× 的观看时间缩短到三分之一。整件 1× 预览按层数安排在 24 秒至 3 分钟内。「播放这一层」会把观看时间留给选中的层。打印时，银灰色喷嘴按当前 G-code 时刻显示位置，橙线标出当前挤出段。空移时喷嘴跟随移动，停留时保持原位，打印结束后隐藏。「仿真」时钟用于计算冷却和层间附着，选择「打印机原速」可按这个时钟观看。「整件快览」用约 12 秒播放整件。</p><p>开启「效果放大」时，已沉积模型的冷缩位移按 20 倍显示，曲线和读数仍为仿真估算值。外墙和填充的位移不同时，放大后两条走线可能相互遮挡，让外墙的颜色看起来断续。选「只看墙」可以单独检查外墙，再切回「层纹仿真」对照原始比例。</p><p>喷嘴几何取自 <a href="https://github.com/OrcaSlicer/OrcaSlicer/blob/v2.5.1/resources/profiles/BBL/bbl-3dp-hotend.stl">OrcaSlicer 2.5.1 的 BBL 热端模型</a>（AGPL-3.0），本页缩小显示。深色打印板沿用 <a href="https://github.com/bambulab/BambuStudio/blob/master/src/slic3r/GUI/PartPlate.cpp">Bambu Studio 网格</a>的 10 mm 间距和 50 mm 主线。</p>
-<p>每个采样点按本处沉积时刻开始冷却。长直线分段插值，保留端点和走线顺序。顶、底高度相接时，按上下两条线的宽度和中心线距离估算局部搭接率。机械约束综合了搭接率、下层冷却后的刚度和界面黏结程度。以两侧初温的均值估算界面初温，用界面高于玻璃化温度的持续时间近似黏结程度。下层较冷可能更硬，同时界面可黏结的时间也可能更短。相连份额还会随下方线段在粘合之后的继续冷缩而移动，这里只近似传递一层。床面单独处理；有空气间隙的支撑或悬空处取零直接接触。多个接触候选取搭接最大的线段。上层覆盖也按本处实际到访时刻计算，覆盖后允许短时再加热，后续收缩受到额外约束。右侧曲线显示所选外墙沿打印板对应方向向内移动了多少，出现负值表示向外。内缩着色显示各点水平位移的大小。</p>
-<p>相邻两层共同冷却。整层用时和下层余温决定 98% 的收缩应变，同一点的覆盖时差和搭接约束占 2%。同层各处共用一条主冷却曲线，贴床处另受热床限制。同一高度上，已由下层连在一起的外墙共用轮廓范围的中点。尚未连通的零件各自收缩。缺少外墙标签时依次采用其他墙和所有走线的范围。填充可额外牵拉最多 0.5% 的基础位移。权重是用于对比切片的预设，尚待实物标定。相关实验研究讨论了沉积热历史和机械变形。<a href="https://doi.org/10.3390/polym14173482">ABS 热力耦合与试验对照</a> · <a href="https://doi.org/10.1039/C7SM00950J">NIST 层间焊合实验</a></p><p>内置 Voron Design Cube V8 来自工作区切片，署名煤球，许可 BY。原切片使用磨砂 PETG。示例使用项目的加减速估时，参考点到访时刻用于调整对照实验的时间轴。曲线可沿前、后、左、右观察。每个方向都在穿过整件中线的竖直平面上取最靠外的墙。某层未经过中线时取最近的走线，该层缺少外墙标签时依次使用其他墙、其余模型走线。左右前后依打印板坐标，物件朝向取决于摆盘。若文件头提供模型打印总时长，按其统一校准各段用时。与内置示例内容完全相同的文件沿用其运动规划估时。换料、加速度和加热等待会使局部估时与真机有差异。</p><p>回放按实际顺序绘制模型的墙、填充、顶底面和桥接。「只看墙」保留内墙、外墙和悬垂墙。两种视图使用同一条时间轴，填充、支撑、擦料塔、空移和显式停留的用时都影响外墙等待时间。多物件切片可按识别到的物件编号切换，整盘用时共用。相邻层的局部接触参与计算，同层的墙与填充只要实际接触就参与传力。最后保留约八个冷却时间常数。等间隔与单层延时是对照实验。资料检索截至 2026-11-23。</p></section></div></details></div><p class="sourceCredit"><a href="licenses/NOTICES.html">模型、切片与开源组件署名</a> · <a href="https://github.com/Alexx-Powered/layer-time-smoother">项目源码</a></p></main>
+<p>每个采样点按本处沉积时刻开始冷却。长直线分段插值，保留端点和走线顺序。顶、底高度相接时，按上下两条线的宽度和中心线距离估算局部搭接率。机械约束综合了搭接率、下层冷却后的刚度和界面黏结程度。以两侧初温的均值估算界面初温，用界面高于玻璃化温度的持续时间近似黏结程度。下层较冷可能更硬，同时界面可黏结的时间也可能更短。相连份额还会随下方线段在粘合之后的继续冷缩而移动，这里只近似传递一层。床面单独处理；有空气间隙的支撑或悬空处取零直接接触。多个接触候选取搭接最大的线段。上层覆盖也按本处实际到访时刻计算，覆盖后允许短时再加热，后续收缩受到额外约束。右侧曲线显示所选外墙沿打印板对应方向向内移动了多少，出现负值表示向外。内缩着色显示各点相对本区域中心的收缩量。模型的位置和右侧外墙曲线还包含下层带来的整体平移。</p>
+<p>相邻两层共同冷却。整层用时和下层余温决定 98% 的收缩应变，同一点的覆盖时差和搭接约束占 2%。同层各处共用一条主冷却曲线，贴床处另受热床限制。同一高度上，挤出线按实际线宽接触分区。每个区域绕自己的外墙范围中点收缩，所以同样的层时间变化在大船壳和独立小柱上产生的位移不同。下层搭接仍参与约束。在走线分开或汇合的高度，按下层实际搭接面积估计支撑位置的移动。每个区域承接一个整体平移，随后独立冷缩。缺少外墙标签时依次采用其他墙和所有走线的范围。填充可额外牵拉最多 0.5% 的基础位移。权重是用于对比切片的预设，尚待实物标定。相关实验研究讨论了沉积热历史和机械变形。<a href="https://doi.org/10.3390/polym14173482">ABS 热力耦合与试验对照</a> · <a href="https://doi.org/10.1039/C7SM00950J">NIST 层间焊合实验</a></p><p>内置 Voron Design Cube V8 来自工作区切片，署名煤球，许可 BY。原切片使用磨砂 PETG。示例使用项目的加减速估时，参考点到访时刻用于调整对照实验的时间轴。曲线可沿前、后、左、右观察。每个方向都在穿过整件中线的竖直平面上取最靠外的墙。某层未经过中线时取最近的走线，该层缺少外墙标签时依次使用其他墙、其余模型走线。左右前后依打印板坐标，物件朝向取决于摆盘。若文件头提供模型打印总时长，按其统一校准各段用时。与内置示例内容完全相同的文件沿用其运动规划估时。换料、加速度和加热等待会使局部估时与真机有差异。</p><p>回放按实际顺序绘制模型的墙、填充、顶底面和桥接。「只看墙」保留内墙、外墙和悬垂墙。两种视图使用同一条时间轴，填充、支撑、擦料塔、空移和显式停留的用时都影响外墙等待时间。多物件切片可按识别到的物件编号切换，整盘用时共用。相邻层的局部接触参与计算，同层的墙与填充只要实际接触就参与传力。最后保留约八个冷却时间常数。等间隔与单层延时是对照实验。资料检索截至 2026-11-23。</p></section></div></details></div><p class="sourceCredit"><a href="licenses/NOTICES.html">模型、切片与开源组件署名</a> · <a href="https://github.com/Alexx-Powered/layer-time-smoother">项目源码</a></p></main>
 <script type="application/octet-stream" id="hotendSTL">Umhpbm9jZXJvcyBCaW5hcnkgU1RMICggU2VwIDI1IDIwMjMgKQ0KICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgDQpwAgAAbyw5P4m7cz717iU/gTw6P40Lpz4AAAAAAmchP1Ugjz6uawA+XNwuP/lO9T2uawA+AABvLDk/ibtzPvXuJT+BPDo/jQunPgAAAABc3C4/+U71Pa5rAD6i8Uk/3yYPPgAAAAAAAHWiQj8a4y499e4lP6LxST/fJg8+AAAAAFzcLj/5TvU9rmsAPmdGMT8SNkW9rmsAPgAAdaJCPxrjLj317iU/ovFJP98mDz4AAAAAZ0YxPxI2Rb2uawA+9cJMPyQrZr0AAAAAAADhFyM/EpHVPvXuJT+ctR4/ZyH7PgAAAAAl0Qk/8ivXPq5rAD4CZyE/VSCPPq5rAD4AAOEXIz8SkdU+9e4lP5y1Hj9nIfs+AAAAAAJnIT9VII8+rmsAPoE8Oj+NC6c+AAAAAAAA49Q+P8FEH7717iU/9cJMPyQrZr0AAAAAZ0YxPxI2Rb2uawA+BHsoP2PmWb6uawA+AADj1D4/wUQfvvXuJT/1wkw/JCtmvQAAAAAEeyg/Y+ZZvq5rAD5Uf0I/kFB+vgAAAAAAAAHmAT8/WxE/9e4lP1568j4EDR8/AAAAAHhs0z7XRgg/rmsAPiXRCT/yK9c+rmsAPgAAAeYBPz9bET/17iU/XnryPgQNHz8AAAAAJdEJP/Ir1z6uawA+nLUeP2ch+z4AAAAAAAATBi4/2LOvvvXuJT9Uf0I/kFB+vgAAAAAEeyg/Y+ZZvq5rAD6hExU/49K5vq5rAD4AABMGLj/Ys6++9e4lP1R/Qj+QUH6+AAAAAKETFT/j0rm+rmsAPs/ZKz/J4Ni+AAAAAAAA2LOvPhMGLj/17iU/3cGYPomyNT8AAAAAxoyGPjquGz+uawA+eGzTPtdGCD+uawA+AADYs68+EwYuP/XuJT/dwZg+ibI1PwAAAAB4bNM+10YIP65rAD5eevI+BA0fPwAAAAAAAD9bET8B5gG/9e4lP8/ZKz/J4Ni+AAAAAKETFT/j0rm+rmsAPofF8D61CPq+rmsAPgAAP1sRPwHmAb/17iU/z9krP8ng2L4AAAAAh8XwPrUI+r6uawA+fl0KP9LoEb8AAAAAAAASkdU+4Rcjv/XuJT9+XQo/0ugRvwAAAACHxfA+tQj6vq5rAD7quag+OJoUv65rAD4AABKR1T7hFyO/9e4lP35dCj/S6BG/AAAAAOq5qD44mhS/rmsAPiKlwD63by2/AAAAAAAAibtzPm8sOb/17iU/IqXAPrdvLb8AAAAA6rmoPjiaFL+uawA+ptotPpIPIr+uawA+AACJu3M+byw5v/XuJT8ipcA+t28tvwAAAACm2i0+kg8iv65rAD4IWkI+1yQ9vwAAAAAAABrjLj11okK/9e4lPwhaQj7XJD2/AAAAAKbaLT6SDyK/rmsAPqDS8jqceSS/rmsAPgAAGuMuPXWiQr/17iU/CFpCPtckPb8AAAAAoNLyOpx5JL+uawA+6/PKuyv2P78AAAAAAADBRB++49Q+v/XuJT/r88q7K/Y/vwAAAACg0vI6nHkkv65rAD45sya+Oq4bv65rAD4AAMFEH77j1D6/9e4lP+vzyrsr9j+/AAAAADmzJr46rhu/rmsAPmYdS76JsjW/AAAAAAAA2LOvvhMGLr/17iU/Zh1LvomyNb8AAAAAObMmvjquG7+uawA+TzmgvtdGCL+uawA+AADYs6++EwYuv/XuJT9mHUu+ibI1vwAAAABPOaC+10YIv65rAD40R7++BA0fvwAAAAAAAAHmAb8/WxG/9e4lPzRHv74EDR+/AAAAAE85oL7XRgi/rmsAPiBv4L7yK9e+rmsAPgAAAeYBvz9bEb/17iU/NEe/vgQNH78AAAAAIG/gvvIr176uawA+BxwFv2ch+74AAAAAAADhFyO/EpHVvvXuJT8HHAW/ZyH7vgAAAAAgb+C+8ivXvq5rAD5tzQe/VSCPvq5rAD4AAOEXI78SkdW+9e4lPwccBb9nIfu+AAAAAG3NB79VII++rmsAPuyiIL+NC6e+AAAAAAAAbyw5v4m7c7717iU/7KIgv40Lp74AAAAAbc0Hv1Ugj76uawA+x0IVv/lO9b2uawA+AABvLDm/ibtzvvXuJT/soiC/jQunvgAAAADHQhW/+U71va5rAD4NWDC/3yYPvgAAAAAAAHWiQr8a4y699e4lPw1YML/fJg++AAAAAMdCFb/5TvW9rmsAPtKsF78SNkU9rmsAPgAAdaJCvxrjLr317iU/DVgwv98mD74AAAAA0qwXvxI2RT2uawA+YCkzvyQrZj0AAAAAAADj1D6/wUQfPvXuJT9gKTO/JCtmPQAAAADSrBe/EjZFPa5rAD5v4Q6/Y+ZZPq5rAD4AAOPUPr/BRB8+9e4lP2ApM78kK2Y9AAAAAG/hDr9j5lk+rmsAPr/lKL+QUH4+AAAAAAAAEwYuv9izrz717iU/v+Uov5BQfj4AAAAAb+EOv2PmWT6uawA+GfT2vuPSuT6uawA+AAATBi6/2LOvPvXuJT+/5Si/kFB+PgAAAAAZ9Pa+49K5Pq5rAD46QBK/yeDYPgAAAAAAAD9bEb8B5gE/9e4lPzpAEr/J4Ng+AAAAABn09r7j0rk+rmsAPl2Svb61CPo+rmsAPgAAP1sRvwHmAT/17iU/OkASv8ng2D4AAAAAXZK9vrUI+j6uawA+0ofhvtLoET8AAAAAAAASkdW+4RcjP/XuJT/Sh+G+0ugRPwAAAABdkr2+tQj6Pq5rAD6BDWu+OJoUP65rAD4AABKR1b7hFyM/9e4lP9KH4b7S6BE/AAAAAIENa744mhQ/rmsAPvhxjb63by0/AAAAAAAAibtzvm8sOT/17iU/+HGNvrdvLT8AAAAAgQ1rvjiaFD+uawA+puiOvZIPIj+uawA+AACJu3O+byw5P/XuJT/4cY2+t28tPwAAAACm6I69kg8iP65rAD5q57e91yQ9PwAAAAAAABrjLr11okI/9e4lP2rnt73XJD0/AAAAAKbojr2SDyI/rmsAPlwByT2ceSQ/rmsAPgAAGuMuvXWiQj/17iU/aue3vdckPT8AAAAAXAHJPZx5JD+uawA+5XvZPSv2Pz8AAAAAAADBRB8+49Q+P/XuJT/le9k9K/Y/PwAAAABcAck9nHkkP65rAD7GjIY+Oq4bP65rAD4AAMFEHz7j1D4/9e4lP+V72T0r9j8/AAAAAMaMhj46rhs/rmsAPt3BmD6JsjU/AAAAAAAAQyxzP2gJoD4AAACAAmchP1Ugjz6uawA+AmchP1Ugjz4UxyxBXNwuP/lO9T0UxyxBAABDLHM/aAmgPgAAAAACZyE/VSCPPq5rAD5c3C4/+U71PRTHLEFc3C4/+U71Pa5rAD4AAOaYfz8gqmU9AAAAgFzcLj/5TvU9rmsAPlzcLj/5TvU9FMcsQWdGMT8SNkW9FMcsQQAA5ph/PyCqZT0AAAAAXNwuP/lO9T2uawA+Z0YxPxI2Rb0UxyxBZ0YxPxI2Rb2uawA+AAA9LVY/xjoMPwAAAIAl0Qk/8ivXPq5rAD4l0Qk/8ivXPhTHLEECZyE/VSCPPhTHLEEAAD0tVj/GOgw/AAAAACXRCT/yK9c+rmsAPgJnIT9VII8+FMcsQQJnIT9VII8+rmsAPgAAZZp6P24nUb4AAACAZ0YxPxI2Rb2uawA+Z0YxPxI2Rb0UxyxBBHsoP2PmWb4UxyxBAABlmno/bidRvgAAAABnRjE/EjZFva5rAD4Eeyg/Y+ZZvhTHLEEEeyg/Y+ZZvq5rAD4AALCVKj9o4j4/AAAAgHhs0z7XRgg/rmsAPnhs0z7XRgg/FMcsQSXRCT/yK9c+FMcsQQAAsJUqP2jiPj8AAAAAeGzTPtdGCD+uawA+JdEJP/Ir1z4UxyxBJdEJP/Ir1z6uawA+AADfh2Q/QLzmvgAAAIAEeyg/Y+ZZvq5rAD4Eeyg/Y+ZZvhTHLEGhExU/49K5vhTHLEEAAN+HZD9AvOa+AAAAAAR7KD9j5lm+rmsAPqETFT/j0rm+FMcsQaETFT/j0rm+rmsAPgAAQLzmPt+HZD8AAACAxoyGPjquGz+uawA+xoyGPjquGz8UxyxBeGzTPtdGCD8UxyxBAABAvOY+34dkPwAAAADGjIY+Oq4bP65rAD54bNM+10YIPxTHLEF4bNM+10YIP65rAD4AAGjiPj+wlSq/AAAAgKETFT/j0rm+rmsAPqETFT/j0rm+FMcsQYfF8D61CPq+FMcsQQAAaOI+P7CVKr8AAAAAoRMVP+PSub6uawA+h8XwPrUI+r4UxyxBh8XwPrUI+r6uawA+AABuJ1E+ZZp6PwAAAIBcAck9nHkkP65rAD5cAck9nHkkPxTHLEHGjIY+Oq4bPxTHLEEAAG4nUT5lmno/AAAAAFwByT2ceSQ/rmsAPsaMhj46rhs/FMcsQcaMhj46rhs/rmsAPgAAxjoMPz0tVr8AAAAAh8XwPrUI+r6uawA+h8XwPrUI+r4UxyxB6rmoPjiaFL8UxyxBAADGOgw/PS1WvwAAAACHxfA+tQj6vq5rAD7quag+OJoUvxTHLEHquag+OJoUv65rAD4AAGgJoD5DLHO/AAAAAOq5qD44mhS/rmsAPuq5qD44mhS/FMcsQabaLT6SDyK/FMcsQQAAaAmgPkMsc78AAAAA6rmoPjiaFL+uawA+ptotPpIPIr8UxyxBptotPpIPIr+uawA+AAAgqmU95ph/vwAAAACm2i0+kg8iv65rAD6m2i0+kg8ivxTHLEGg0vI6nHkkvxTHLEEAACCqZT3mmH+/AAAAAKbaLT6SDyK/rmsAPqDS8jqceSS/FMcsQaDS8jqceSS/rmsAPgAAbidRvmWaer8AAAAAoNLyOpx5JL+uawA+oNLyOpx5JL8UxyxBObMmvjquG78UxyxBAABuJ1G+ZZp6vwAAAICg0vI6nHkkv65rAD45sya+Oq4bvxTHLEE5sya+Oq4bv65rAD4AAEC85r7fh2S/AAAAADmzJr46rhu/rmsAPjmzJr46rhu/FMcsQU85oL7XRgi/FMcsQQAAQLzmvt+HZL8AAACAObMmvjquG7+uawA+TzmgvtdGCL8UxyxBTzmgvtdGCL+uawA+AACwlSq/aOI+vwAAAABPOaC+10YIv65rAD5POaC+10YIvxTHLEEgb+C+8ivXvhTHLEEAALCVKr9o4j6/AAAAAE85oL7XRgi/rmsAPiBv4L7yK9e+FMcsQSBv4L7yK9e+rmsAPgAAPS1Wv8Y6DL8AAAAAIG/gvvIr176uawA+IG/gvvIr174UxyxBbc0Hv1Ugj74UxyxBAAA9LVa/xjoMvwAAAIAgb+C+8ivXvq5rAD5tzQe/VSCPvhTHLEFtzQe/VSCPvq5rAD4AAEMsc79oCaC+AAAAAG3NB79VII++rmsAPm3NB79VII++FMcsQcdCFb/5TvW9FMcsQQAAQyxzv2gJoL4AAACAbc0Hv1Ugj76uawA+x0IVv/lO9b0UxyxBx0IVv/lO9b2uawA+AADmmH+/IKplvQAAAADHQhW/+U71va5rAD7HQhW/+U71vRTHLEHSrBe/EjZFPRTHLEEAAOaYf78gqmW9AAAAgMdCFb/5TvW9rmsAPtKsF78SNkU9FMcsQdKsF78SNkU9rmsAPgAAZZp6v24nUT4AAAAA0qwXvxI2RT2uawA+0qwXvxI2RT0UxyxBb+EOv2PmWT4UxyxBAABlmnq/bidRPgAAAADSrBe/EjZFPa5rAD5v4Q6/Y+ZZPhTHLEFv4Q6/Y+ZZPq5rAD4AAN+HZL9AvOY+AAAAAG/hDr9j5lk+rmsAPm/hDr9j5lk+FMcsQRn09r7j0rk+FMcsQQAA34dkv0C85j4AAAAAb+EOv2PmWT6uawA+GfT2vuPSuT4UxyxBGfT2vuPSuT6uawA+AABo4j6/sJUqPwAAAAAZ9Pa+49K5Pq5rAD4Z9Pa+49K5PhTHLEFdkr2+tQj6PhTHLEEAAGjiPr+wlSo/AAAAABn09r7j0rk+rmsAPl2Svb61CPo+FMcsQV2Svb61CPo+rmsAPgAAxjoMvz0tVj8AAACAXZK9vrUI+j6uawA+XZK9vrUI+j4UxyxBgQ1rvjiaFD8UxyxBAADGOgy/PS1WPz0t1qFdkr2+tQj6Pq5rAD6BDWu+OJoUPxTHLEGBDWu+OJoUP65rAD4AAGgJoL5DLHM/AAAAgIENa744mhQ/rmsAPoENa744mhQ/FMcsQabojr2SDyI/FMcsQQAAaAmgvkMscz8AAAAAgQ1rvjiaFD+uawA+puiOvZIPIj8UxyxBpuiOvZIPIj+uawA+AAAgqmW95ph/PwAAAICm6I69kg8iP65rAD6m6I69kg8iPxTHLEFcAck9nHkkPxTHLEEAACCqZb3mmH8/AAAAAKbojr2SDyI/rmsAPlwByT2ceSQ/FMcsQVwByT2ceSQ/rmsAPgAAA3BMP1WLhj7yngo/AmchP1Ugjz4UxyxBp133Pb+fCz3utTpBWT8CPklObzzutTpBAAADcEw/VYuGPvKeCj8CZyE/VSCPPhTHLEFZPwI+SU5vPO61OkFc3C4/+U71PRTHLEEAAAHiVj+7FEE98p4KP1zcLj/5TvU9FMcsQVk/Aj5JTm887rU6Qc5sAz6tYsC77rU6QQAAAeJWP7sUQT3yngo/XNwuP/lO9T0UxyxBzmwDPq1iwLvutTpBZ0YxPxI2Rb0UxyxBAABpDzQ/0sjrPvKeCj8l0Qk/8ivXPhTHLEGIW+A9C+hRPe61OkGnXfc9v58LPe61OkEAAGkPND/SyOs+8p4KPyXRCT/yK9c+FMcsQadd9z2/nws97rU6QQJnIT9VII8+FMcsQQAAJ69SP23WL77yngo/Z0YxPxI2Rb0UxyxBzmwDPq1iwLvutTpBUUX+PWSR1LzutTpBAAAnr1I/bdYvvvKeCj9nRjE/EjZFvRTHLEFRRf49ZJHUvO61OkEEeyg/Y+ZZvhTHLEEAAHxpDz9oeiA/8p4KP3hs0z7XRgg/FMcsQb0JwT0p8YQ97rU6QYhb4D0L6FE97rU6QQAAfGkPP2h6ID/yngo/eGzTPtdGCD8UxyxBiFvgPQvoUT3utTpBJdEJP/Ir1z4UxyxBAAC1IEA/MPvBvvKeCj8Eeyg/Y+ZZvhTHLEFRRf49ZJHUvO61OkF8V+s91EY1ve61OkEAALUgQD8w+8G+8p4KPwR7KD9j5lm+FMcsQXxX6z3URjW97rU6QaETFT/j0rm+FMcsQQAAMPvBPrUgQD/yngo/xoyGPjquGz8UxyxBrIqbPf7elz3utTpBvQnBPSnxhD3utTpBAAAw+8E+tSBAP/KeCj/GjIY+Oq4bPxTHLEG9CcE9KfGEPe61OkF4bNM+10YIPxTHLEEAAGh6ID98aQ+/8p4KP6ETFT/j0rm+FMcsQXxX6z3URjW97rU6QVlazz1q6nO97rU6QQAAaHogP3xpD7/yngo/oRMVP+PSub4UxyxBWVrPPWrqc73utTpBh8XwPrUI+r4UxyxBAABt1i8+J69SP/KeCj9cAck9nHkkPxTHLEH82GQ9SnOgPe61OkGsips9/t6XPe61OkEAAG3WLz4nr1I/8p4KP1wByT2ceSQ/FMcsQayKmz3+3pc97rU6QcaMhj46rhs/FMcsQQAA0sjrPmkPNL/yngo/h8XwPrUI+r4UxyxBWVrPPWrqc73utTpBMzasPVP3kL3utTpBAADSyOs+aQ80v/KeCj+HxfA+tQj6vhTHLEEzNqw9U/eQve61OkHquag+OJoUvxTHLEEAALsUQb0B4lY/8p4KP6bojr2SDyI/FMcsQRT5ED1fGJ497rU6QfzYZD1Kc6A97rU6QQAAuxRBvQHiVj/yngo/puiOvZIPIj8UxyxB/NhkPUpzoD3utTpBXAHJPZx5JD8UxyxBAABVi4Y+A3BMv/KeCj/quag+OJoUvxTHLEEzNqw9U/eQve61OkEcUIQ9Xxieve61OkEAAFWLhj4DcEy/8p4KP+q5qD44mhS/FMcsQRxQhD1fGJ697rU6QabaLT6SDyK/FMcsQQAAuxRBPQHiVr/yngo/ptotPpIPIr8UxyxBHFCEPV8Ynr3utTpBUcA0PUpzoL3utTpBAAC7FEE9AeJWv/KeCj+m2i0+kg8ivxTHLEFRwDQ9SnOgve61OkGg0vI6nHkkvxTHLEEAAG3WL74nr1K/8p4KP6DS8jqceSS/FMcsQVHAND1Kc6C97rU6QekHxTz+3pe97rU6QQAAbdYvvievUr/yngo/oNLyOpx5JL8UxyxB6QfFPP7el73utTpBObMmvjquG78UxyxBAAAw+8G+tSBAv/KeCj85sya+Oq4bvxTHLEHpB8U8/t6Xve61OkGSLrw7KfGEve61OkEAADD7wb61IEC/8p4KPzmzJr46rhu/FMcsQZIuvDsp8YS97rU6QU85oL7XRgi/FMcsQQAAfGkPv2h6IL/yngo/TzmgvtdGCL8UxyxBki68OynxhL3utTpBDnccvAvoUb3utTpBAAB8aQ+/aHogv/KeCj9POaC+10YIvxTHLEEOdxy8C+hRve61OkEgb+C+8ivXvhTHLEEAAGkPNL/SyOu+8p4KPyBv4L7yK9e+FMcsQQ53HLwL6FG97rU6QQFEqry/nwu97rU6QQAAaQ80v9LI677yngo/IG/gvvIr174UxyxBAUSqvL+fC73utTpBbc0Hv1Ugj74UxyxBAAADcEy/VYuGvvKeCj9tzQe/VSCPvhTHLEEBRKq8v58Lve61OkEtyN68SU5vvO61OkEAAANwTL9Vi4a+8p4KP23NB79VII++FMcsQS3I3rxJTm+87rU6QcdCFb/5TvW9FMcsQQAAAeJWv7sUQb3yngo/x0IVv/lO9b0UxyxBLcjevElOb7zutTpB2TPovK1iwDvutTpBAAAB4la/uxRBvfKeCj/HQhW/+U71vRTHLEHZM+i8rWLAO+61OkHSrBe/EjZFPRTHLEEAACevUr9t1i8+8p4KP9KsF78SNkU9FMcsQdkz6LytYsA77rU6QavixbxkkdQ87rU6QQAAJ69Sv23WLz7yngo/0qwXvxI2RT0UxyxBq+LFvGSR1DzutTpBb+EOv2PmWT4UxyxBAAC1IEC/MPvBPvKeCj9v4Q6/Y+ZZPhTHLEGr4sW8ZJHUPO61OkGrVnS81EY1Pe61OkEAALUgQL8w+8E+8p4KP2/hDr9j5lk+FMcsQatWdLzURjU97rU6QRn09r7j0rk+FMcsQQAAaHogv3xpDz/yngo/GfT2vuPSuT4UxyxBq1Z0vNRGNT3utTpBjWyjumrqcz3utTpBAABoeiC/fGkPP/KeCj8Z9Pa+49K5PhTHLEGNbKO6aupzPe61OkFdkr2+tQj6PhTHLEEAANLI675pDzQ/8p4KP12Svb61CPo+FMcsQY1so7pq6nM97rU6Qc9ZgjxT95A97rU6QQAA0sjrvmkPND/yngo/XZK9vrUI+j4UxyxBz1mCPFP3kD3utTpBgQ1rvjiaFD8UxyxBAABVi4a+A3BMP/KeCj+BDWu+OJoUPxTHLEHPWYI8U/eQPe61OkEU+RA9XxiePe61OkEAAFWLhr4DcEw/8p4KP4ENa744mhQ/FMcsQRT5ED1fGJ497rU6Qabojr2SDyI/FMcsQQAAQyxzP2gJoD4AAACAp133Pb+fCz3utTpBp133Pb+fCz0AAEBBWT8CPklObzwAAEBBAABDLHM/aAmgPgAAAACnXfc9v58LPe61OkFZPwI+SU5vPAAAQEFZPwI+SU5vPO61OkEAAOaYfz8gqmU9AAAAgFk/Aj5JTm887rU6QVk/Aj5JTm88AABAQc5sAz6tYsC7AABAQQAA5ph/PyCqZT0AAAAAWT8CPklObzzutTpBzmwDPq1iwLsAAEBBzmwDPq1iwLvutTpBAAA9LVY/xjoMPwAAAICIW+A9C+hRPe61OkGIW+A9C+hRPQAAQEGnXfc9v58LPQAAQEEAAD0tVj/GOgw/AAAAAIhb4D0L6FE97rU6Qadd9z2/nws9AABAQadd9z2/nws97rU6QQAAZZp6P24nUb4AAACAzmwDPq1iwLvutTpBzmwDPq1iwLsAAEBBUUX+PWSR1LwAAEBBAABlmno/bidRvgAAAADObAM+rWLAu+61OkFRRf49ZJHUvAAAQEFRRf49ZJHUvO61OkEAALCVKj9o4j4/AAAAgL0JwT0p8YQ97rU6Qb0JwT0p8YQ9AABAQYhb4D0L6FE9AABAQQAAsJUqP2jiPj8AAAAAvQnBPSnxhD3utTpBiFvgPQvoUT0AAEBBiFvgPQvoUT3utTpBAADfh2Q/QLzmvgAAAIBRRf49ZJHUvO61OkFRRf49ZJHUvAAAQEF8V+s91EY1vQAAQEEAAN+HZD9AvOa+AAAAAFFF/j1kkdS87rU6QXxX6z3URjW9AABAQXxX6z3URjW97rU6QQAAQLzmPt+HZD8AAACArIqbPf7elz3utTpBrIqbPf7elz0AAEBBvQnBPSnxhD0AAEBBAABAvOY+34dkPwAAAACsips9/t6XPe61OkG9CcE9KfGEPQAAQEG9CcE9KfGEPe61OkEAAGjiPj+wlSq/AAAAgHxX6z3URjW97rU6QXxX6z3URjW9AABAQVlazz1q6nO9AABAQQAAaOI+P7CVKr8AAAAAfFfrPdRGNb3utTpBWVrPPWrqc70AAEBBWVrPPWrqc73utTpBAABuJ1E+ZZp6PwAAAID82GQ9SnOgPe61OkH82GQ9SnOgPQAAQEGsips9/t6XPQAAQEEAAG4nUT5lmno/AAAAAPzYZD1Kc6A97rU6QayKmz3+3pc9AABAQayKmz3+3pc97rU6QQAAxjoMPz0tVr8AAAAAWVrPPWrqc73utTpBWVrPPWrqc70AAEBBMzasPVP3kL0AAEBBAADGOgw/PS1WvwAAAABZWs89aupzve61OkEzNqw9U/eQvQAAQEEzNqw9U/eQve61OkEAACCqZb3mmH8/AAAAgBT5ED1fGJ497rU6QRT5ED1fGJ49AABAQfzYZD1Kc6A9AABAQQAAIKplveaYfz8AAAAAFPkQPV8Ynj3utTpB/NhkPUpzoD0AAEBB/NhkPUpzoD3utTpBAABoCaA+QyxzvwAAAAAzNqw9U/eQve61OkEzNqw9U/eQvQAAQEEcUIQ9XxievQAAQEEAAGgJoD5DLHO/AAAAADM2rD1T95C97rU6QRxQhD1fGJ69AABAQRxQhD1fGJ697rU6QQAAaAmgvkMscz8AAACAz1mCPFP3kD3utTpBz1mCPFP3kD0AAEBBFPkQPV8Ynj0AAEBBAABoCaC+QyxzPwAAAADPWYI8U/eQPe61OkEU+RA9XxiePQAAQEEU+RA9XxiePe61OkEAACCqZT3mmH+/AAAAABxQhD1fGJ697rU6QRxQhD1fGJ69AABAQVHAND1Kc6C9AABAQQAAIKplPeaYf78AAAAAHFCEPV8Ynr3utTpBUcA0PUpzoL0AAEBBUcA0PUpzoL3utTpBAABuJ1G+ZZp6vwAAAABRwDQ9SnOgve61OkFRwDQ9SnOgvQAAQEHpB8U8/t6XvQAAQEEAAG4nUb5lmnq/AAAAAFHAND1Kc6C97rU6QekHxTz+3pe9AABAQekHxTz+3pe97rU6QQAAQLzmvt+HZL8AAAAA6QfFPP7el73utTpB6QfFPP7el70AAEBBki68OynxhL0AAEBBAABAvOa+34dkvwAAAIDpB8U8/t6Xve61OkGSLrw7KfGEvQAAQEGSLrw7KfGEve61OkEAALCVKr9o4j6/AAAAAJIuvDsp8YS97rU6QZIuvDsp8YS9AABAQQ53HLwL6FG9AABAQQAAsJUqv2jiPr8AAAAAki68OynxhL3utTpBDnccvAvoUb0AAEBBDnccvAvoUb3utTpBAAA9LVa/xjoMvwAAAAAOdxy8C+hRve61OkEOdxy8C+hRvQAAQEEBRKq8v58LvQAAQEEAAD0tVr/GOgy/AAAAgA53HLwL6FG97rU6QQFEqry/nwu9AABAQQFEqry/nwu97rU6QQAAQyxzv2gJoL4AAAAAAUSqvL+fC73utTpBAUSqvL+fC70AAEBBLcjevElOb7wAAEBBAABDLHO/aAmgvgAAAAABRKq8v58Lve61OkEtyN68SU5vvAAAQEEtyN68SU5vvO61OkEAAOaYf78gqmW9AAAAAC3I3rxJTm+87rU6QS3I3rxJTm+8AABAQdkz6LytYsA7AABAQQAA5ph/vyCqZb3mmP+gLcjevElOb7zutTpB2TPovK1iwDsAAEBB2TPovK1iwDvutTpBAABlmnq/bidRPgAAAADZM+i8rWLAO+61OkHZM+i8rWLAOwAAQEGr4sW8ZJHUPAAAQEEAAGWaer9uJ1E+AAAAANkz6LytYsA77rU6QavixbxkkdQ8AABAQavixbxkkdQ87rU6QQAA34dkv0C85j4AAAAAq+LFvGSR1DzutTpBq+LFvGSR1DwAAEBBq1Z0vNRGNT0AAEBBAADfh2S/QLzmPgAAAACr4sW8ZJHUPO61OkGrVnS81EY1PQAAQEGrVnS81EY1Pe61OkEAAGjiPr+wlSo/AAAAAKtWdLzURjU97rU6QatWdLzURjU9AABAQY1so7pq6nM9AABAQQAAaOI+v7CVKj8AAAAAq1Z0vNRGNT3utTpBjWyjumrqcz0AAEBBjWyjumrqcz3utTpBAADGOgy/PS1WPwAAAICNbKO6aupzPe61OkGNbKO6aupzPQAAQEHPWYI8U/eQPQAAQEEAAMY6DL89LVY/AAAAAI1so7pq6nM97rU6Qc9ZgjxT95A9AABAQc9ZgjxT95A97rU6QQAAkW4wPnJlUz8kfAk/PXEAPhC/XD4AAEBBD67CPveZcT8UxyxBHW3/Pec/fz8UxyxBAACRbjA+cmVTPyR8CT89cQA+EL9cPgAAQEEdbf895z9/PxTHLEGhWok9ZzdpPgAAQEEAAMq7Qb3um1c/JHwJP6FaiT1nN2k+AABAQR1t/z3nP38/FMcsQdolC77CgHs/FMcsQQAAyrtBve6bVz8kfAk/oVqJPWc3aT4AAEBB2iULvsKAez8UxyxBeg/3Ow7LZT4AAEBBAAC//4a+5yBNPyR8CT96D/c7DstlPgAAQEHaJQu+woB7PxTHLEG7hMS+551mPxTHLEEAAL//hr7nIE0/JHwJP3oP9zsOy2U+AABAQbuExL7nnWY/FMcsQT0XSb29tVI+AABAQQAA1ZTsvjWrND8kfAk/PRdJvb21Uj4AAEBBu4TEvuedZj8UxyxBuykav7YDQj8UxyxBAADVlOy+Nas0PyR8CT89F0m9vbVSPgAAQEG7KRq/tgNCPxTHLEGhs8q9YkQxPgAAQEEAAEMFIb+S5Q8/JHwJP6Gzyr1iRDE+AABAQbspGr+2A0I/FMcsQUSwRr+/MBA/FMcsQQAAQwUhv5LlDz8kfAk/obPKvWJEMT4AAEBBRLBGv78wED8UxyxBbQgOvm6+Az4AAEBBAADyxkC/B6PCPiR8CT/miym+J3yaPQAAQEFtCA6+br4DPgAAQEFEsEa/vzAQPxTHLEEAAPLGQL8Ho8I+JHwJP+aLKb4nfJo9AABAQUSwRr+/MBA/FMcsQSzNZL96FKk+FMcsQQAAcmVTv5FuMD4kfAk/PQQ2vjbRizwAAEBB5ospvid8mj0AAEBBLM1kv3oUqT4UxyxBAAByZVO/kW4wPiR8CT89BDa+NtGLPAAAQEEszWS/ehSpPhTHLEEcc3K/yQaZPRTHLEEAAO6bV7/Ku0G9JHwJPz0ENr420Ys8AABAQRxzcr/JBpk9FMcsQfizbr8EWT6+FMcsQQAA7ptXv8q7Qb0kfAk/PQQ2vjbRizwAAEBB+LNuvwRZPr4UxyxB5JcyvrfqLb0AAEBBAADnIE2/v/+GviR8CT/klzK+t+otvQAAQEH4s26/BFk+vhTHLEEd0Vm/UB7evhTHLEEAAOcgTb+//4a+JHwJP+SXMr636i29AABAQR3RWb9QHt6+FMcsQZOCH77y8cq9AABAQQAANas0v9WU7L4kfAk/k4IfvvLxyr0AAEBBHdFZv1Ae3r4UxyxB6zY1v4X2Jr8UxyxBAAA1qzS/1ZTsviR8CT+Tgh++8vHKvQAAQEHrNjW/hfYmvxTHLEFxIvy9+owYvgAAQEEAAJLlD79DBSG/JHwJP4kWob2WO0G+AABAQXEi/L36jBi+AABAQes2Nb+F9ia/FMcsQQAAkuUPv0MFIb8kfAk/iRahvZY7Qb4AAEBB6zY1v4X2Jr8UxyxB9WMDvw59U78UxyxBAAAHo8K+8sZAvyR8CT9OV9C8EL9cvgAAQEGJFqG9ljtBvgAAQEH1YwO/Dn1TvxTHLEEAAAejwr7yxkC/JHwJP05X0LwQv1y+AABAQfVjA78OfVO/FMcsQeV6j773mXG/FMcsQQAAkW4wvnJlU78kfAk/TlfQvBC/XL4AAEBB5XqPvveZcb8UxyxB2YHKvOc/f78UxyxBAACRbjC+cmVTvyR8CT9OV9C8EL9cvgAAQEHZgcq85z9/vxTHLEEM5AY9ZzdpvgAAQEEAAMq7QT3um1e/JHwJP69bvT0Oy2W+AABAQQzkBj1nN2m+AABAQdmByrznP3+/FMcsQQAAyrtBPe6bV78kfAk/r1u9PQ7LZb4AAEBB2YHKvOc/f78UxyxBLoxxPsKAe78UxyxBAAC//4Y+5yBNvyR8CT+vW709DstlvgAAQEEujHE+woB7vxTHLEHkt/c+551mvxTHLEEAAL//hj7nIE2/JHwJP69bvT0Oy2W+AABAQeS39z7nnWa/FMcsQSKsGD69tVK+AABAQQAA1ZTsPjWrNL8kfAk/IqwYPr21Ur4AAEBB5Lf3PuedZr8UxyxBUMMzP7YDQr8UxyxBAADVlOw+Nas0vyR8CT8irBg+vbVSvgAAQEFQwzM/tgNCvxTHLEEkwEs+YkQxvgAAQEEAAEMFIT+S5Q+/JHwJP8BudD5uvgO+AABAQSTASz5iRDG+AABAQVDDMz+2A0K/FMcsQQAAQwUhP5LlD78kfAk/wG50Pm6+A74AAEBBUMMzP7YDQr8UxyxB2ElgP78wEL8UxyxBAAAHo8I+8sZAPyR8CT+Y8TY+ljtBPgAAQEGJ/Rw/Dn1TPxTHLEEPrsI+95lxPxTHLEEAAAejwj7yxkA/JHwJP5jxNj6WO0E+AABAQQ+uwj73mXE/FMcsQT1xAD4Qv1w+AABAQQAA8sZAPwejwr4kfAk/wG50Pm6+A74AAEBB2ElgP78wEL8UxyxBwWZ+P3oUqb4UxyxBAADyxkA/B6PCviR8CT/AbnQ+br4DvgAAQEHBZn4/ehSpvhTHLEEd+Yc+J3yavQAAQEEAAJLlDz9DBSE/JHwJP4x3ZD76jBg+AABAQYDQTj+F9iY/FMcsQYn9HD8OfVM/FMcsQQAAkuUPP0MFIT8kfAk/jHdkPvqMGD4AAEBBif0cPw59Uz8UxyxBmPE2PpY7QT4AAEBBAAByZVM/kW4wviR8CT9INY4+NtGLvAAAQEEd+Yc+J3yavQAAQEHBZn4/ehSpvhTHLEEAAHJlUz+RbjC+JHwJP0g1jj420Yu8AABAQcFmfj96FKm+FMcsQVkGhj/JBpm9FMcsQQAANas0P9WU7D4kfAk/jHdkPvqMGD4AAEBBc/SCPvLxyj0AAEBBsmpzP1Ae3j4UxyxBAAA1qzQ/1ZTsPiR8CT+Md2Q++owYPgAAQEGyanM/UB7ePhTHLEGA0E4/hfYmPxTHLEEAAO6bVz/Ku0E9JHwJPxx/jD636i09AABAQUg1jj420Yu8AABAQVkGhj/JBpm9FMcsQQAA7ptXP8q7QT0kfAk/HH+MPrfqLT0AAEBBWQaGP8kGmb0UxyxBxiaEPwRZPj4UxyxBAADnIE0/v/+GPiR8CT8cf4w+t+otPQAAQEHGJoQ/BFk+PhTHLEGyanM/UB7ePhTHLEEAAOcgTT+//4Y+JHwJPxx/jD636i09AABAQbJqcz9QHt4+FMcsQXP0gj7y8co9AABAQQAAAAAAAAAAAAAAAIA/D67CPveZcT8UxyxBxMntPouZlz8UxyxBgzgTPuopoD8UxyxBAAAAAACAAAAAgAAAgD8PrsI+95lxPxTHLEGDOBM+6imgPxTHLEEdbf895z9/PxTHLEEAAAAAAAAAAAAAAACAPx1t/z3nP38/FMcsQYM4Ez7qKaA/FMcsQbCtO74T0J0/FMcsQQAAAAAAAAAAAAAAAIA/HW3/Pec/fz8UxyxBsK07vhPQnT8UxyxB2iULvsKAez8UxyxBAAAAAACAAAAAAAAAgD+J/Rw/Dn1TPxTHLEG5wEE/XrSEPxTHLEHEye0+i5mXPxTHLEEAAAAAAIAAAACAAACAP4n9HD8OfVM/FMcsQcTJ7T6LmZc/FMcsQQ+uwj73mXE/FMcsQQAAAAAAAAAAAIAAAIA/sK07vhPQnT8UxyxBNib9vgm1kD8UxyxBu4TEvuedZj8UxyxBAAAAAAAAAAAAAAAAgD+wrTu+E9CdPxTHLEG7hMS+551mPxTHLEHaJQu+woB7PxTHLEEAAAAAAAAAAAAAAACAP7uExL7nnWY/FMcsQTYm/b4JtZA/FMcsQUS7RL/genM/FMcsQQAAAAAAAAAAAIAAAIA/u4TEvuedZj8UxyxBRLtEv+B6cz8UxyxBuykav7YDQj8UxyxBAAAAAAAAAAAAgAAAgD+7KRq/tgNCPxTHLEFEu0S/4HpzPxTHLEHxm3y/7/M0PxTHLEEAAAAAAAAAAACAAACAP7spGr+2A0I/FMcsQfGbfL/v8zQ/FMcsQUSwRr+/MBA/FMcsQQAAAAAAAAAAAAAAAIA/8Zt8v+/zND8UxyxBJjORvzAw1D4UxyxBLM1kv3oUqT4UxyxBAAAAAAAAAAAAAAAAgD/xm3y/7/M0PxTHLEEszWS/ehSpPhTHLEFEsEa/vzAQPxTHLEEAAAAAAIAAAACAAACAPyYzkb8wMNQ+FMcsQYXDmb+zCsA9FMcsQRxzcr/JBpk9FMcsQQAAAAAAAAAAAAAAAIA/JjORvzAw1D4UxyxBHHNyv8kGmT0UxyxBLM1kv3oUqT4UxyxBAAAAAACAAAAAAAAAgD8cc3K/yQaZPRTHLEGFw5m/swrAPRTHLEGuaZe/2uBuvhTHLEEAAAAAAIAAAAAAAACAPxxzcr/JBpk9FMcsQa5pl7/a4G6+FMcsQfizbr8EWT6+FMcsQQAAAAAAAAAAAAAAAIA/rmmXv9rgbr4UxyxBpE6Kv+ZfC78UxyxBHdFZv1Ae3r4UxyxBAAAAAAAAAAAAAAAAgD+uaZe/2uBuvhTHLEEd0Vm/UB7evhTHLEH4s26/BFk+vhTHLEEAAAAAAAAAAACAAACAPx3RWb9QHt6+FMcsQaROir/mXwu/FMcsQRWuZr8OiFG/FMcsQQAAAAAAAAAAAAAAAIA/HdFZv1Ae3r4UxyxBFa5mvw6IUb8UxyxB6zY1v4X2Jr8UxyxBAAAAAAAAAAAAAAAAgD8Vrma/DohRvxTHLEElJyi/XrSEvxTHLEH1YwO/Dn1TvxTHLEEAAAAAAAAAAAAAAACAPxWuZr8OiFG/FMcsQfVjA78OfVO/FMcsQes2Nb+F9ia/FMcsQQAAAAAAAAAAAAAAAIA/JScov160hL8UxyxBm5a6vouZl78UxyxB5XqPvveZcb8UxyxBAAAAAACAAAAAAAAAgD8lJyi/XrSEvxTHLEHleo++95lxvxTHLEH1YwO/Dn1TvxTHLEEAAAAAAIAAAACAAACAP+V6j773mXG/FMcsQZuWur6LmZe/FMcsQcBIM73qKaC/FMcsQQAAAAAAAAAAAAAAAIA/5XqPvveZcb8UxyxBwEgzveopoL8UxyxB2YHKvOc/f78UxyxBAAAAAACAAAAAAAAAgD/ASDO96imgvxTHLEECCpE+E9CdvxTHLEEujHE+woB7vxTHLEEAAAAAAAAAAACAAACAP8BIM73qKaC/FMcsQS6McT7CgHu/FMcsQdmByrznP3+/FMcsQQAAAAAAAAAAAIAAAIA/LoxxPsKAe78UxyxBAgqRPhPQnb8UxyxBsCwYPwm1kL8UxyxBAAAAAAAAAAAAAAAAgD8ujHE+woB7vxTHLEGwLBg/CbWQvxTHLEHkt/c+551mvxTHLEEAAAAAAAAAAAAAAACAP+S39z7nnWa/FMcsQbAsGD8JtZC/FMcsQdhUXj/genO/FMcsQQAAAAAAAAAAAAAAAIA/5Lf3PuedZr8UxyxB2FReP+B6c78UxyxBUMMzP7YDQr8UxyxBAAAAAACAAAAAAAAAgD/YVF4/4HpzvxTHLEHDGos/7/M0vxTHLEHYSWA/vzAQvxTHLEEAAAAAAIAAAAAAAACAP9hUXj/genO/FMcsQdhJYD+/MBC/FMcsQVDDMz+2A0K/FMcsQQAAAAAAAAAAAAAAAIA/2ElgP78wEL8UxyxBwxqLP+/zNL8UxyxB8P+dPzAw1L4UxyxBAAAAAACAAAAAAAAAgD/YSWA/vzAQvxTHLEHw/50/MDDUvhTHLEHBZn4/ehSpvhTHLEEAAAAAAIAAAACAAACAP9UjgD8OiFE/FMcsQbnAQT9etIQ/FMcsQYn9HD8OfVM/FMcsQQAAAAAAAAAAAIAAAIA/1SOAPw6IUT8UxyxBif0cPw59Uz8UxyxBgNBOP4X2Jj8UxyxBAAAAAACAAAAAAAAAgD/w/50/MDDUvhTHLEFPkKY/swrAvRTHLEFZBoY/yQaZvRTHLEEAAAAAAAAAAAAAAACAP/D/nT8wMNS+FMcsQVkGhj/JBpm9FMcsQcFmfj96FKm+FMcsQQAAAAAAAAAAAAAAAIA/bhuXP+ZfCz8UxyxB1SOAPw6IUT8UxyxBgNBOP4X2Jj8UxyxBAAAAAAAAAAAAgAAAgD9uG5c/5l8LPxTHLEGA0E4/hfYmPxTHLEGyanM/UB7ePhTHLEEAAAAAAIAAAACAAACAP0+Qpj+zCsC9FMcsQXg2pD/a4G4+FMcsQcYmhD8EWT4+FMcsQQAAAAAAgAAAAIAAAIA/T5CmP7MKwL0UxyxBxiaEPwRZPj4UxyxBWQaGP8kGmb0UxyxBAAAAAAAAAAAAAAAAgD/GJoQ/BFk+PhTHLEF4NqQ/2uBuPhTHLEFuG5c/5l8LPxTHLEEAAAAAAIAAAAAAAACAP8YmhD8EWT4+FMcsQW4blz/mXws/FMcsQbJqcz9QHt4+FMcsQQAA7qdCPl07aT/WTbs+xMntPouZlz8UxyxBQVcTP3Q/wD8zMx9Bc/csPqkbyz8zMx9BAADup0I+XTtpP9ZNuz7Eye0+i5mXPxTHLEFz9yw+qRvLPzMzH0GDOBM+6imgPxTHLEEAAMe91j6GsFQ/1k27PrnAQT9etIQ/FMcsQXNFcj9MSag/MzMfQUFXEz90P8A/MzMfQQAAx73WPoawVD/WTbs+ucBBP160hD8UxyxBQVcTP3Q/wD8zMx9BxMntPouZlz8UxyxBAACpvlW9P+FtP9ZNuz6DOBM+6imgPxTHLEFz9yw+qRvLPzMzH0F1unu+cyDIPzMzH0EAAKm+Vb0/4W0/1k27PoM4Ez7qKaA/FMcsQXW6e75zIMg/MzMfQbCtO74T0J0/FMcsQQAAgfGUvhZRYj/WTbs+dbp7vnMgyD8zMx9B3/Ejv9WBtz8zMx9BNib9vgm1kD8UxyxBAACB8ZS+FlFiP9ZNuz51unu+cyDIPzMzH0E2Jv2+CbWQPxTHLEGwrTu+E9CdPxTHLEEAAJzCHj8apzE/1k27PibIoD8424Q/MzMfQXNFcj9MSag/MzMfQbnAQT9etIQ/FMcsQQAAnMIePxqnMT/WTbs+JsigPzjbhD8zMx9BucBBP160hD8UxyxB1SOAPw6IUT8UxyxBAABcggK/m1RHP9ZNuz7f8SO/1YG3PzMzH0Gl6Xy/wGGaPzMzH0FEu0S/4HpzPxTHLEEAAFyCAr+bVEc/1k27Pt/xI7/Vgbc/MzMfQUS7RL/genM/FMcsQTYm/b4JtZA/FMcsQQAAGqcxv5zCHj/WTbs+RLtEv+B6cz8UxyxBpel8v8Bhmj8zMx9B5uKhv6l4ZT8zMx9BAAAapzG/nMIeP9ZNuz5Eu0S/4HpzPxTHLEHm4qG/qXhlPzMzH0Hxm3y/7/M0PxTHLEEAAIawVL/HvdY+1k27Pubiob+peGU/MzMfQQ/Zub93igY/MzMfQSYzkb8wMNQ+FMcsQQAAhrBUv8e91j7WTbs+5uKhv6l4ZT8zMx9BJjORvzAw1D4UxyxB8Zt8v+/zND8UxyxBAABdO2m/7qdCPtZNuz4P2bm/d4oGPzMzH0FEtcS/lIjzPTMzH0GFw5m/swrAPRTHLEEAAF07ab/up0I+1k27Pg/Zub93igY/MzMfQYXDmb+zCsA9FMcsQSYzkb8wMNQ+FMcsQQAAP+Ftv6m+Vb3WTbs+hcOZv7MKwD0UxyxBRLXEv5SI8z0zMx9BDrrBv892l74zMx9BAAA/4W2/qb5VvdZNuz6Fw5m/swrAPRTHLEEOusG/z3aXvjMzH0GuaZe/2uBuvhTHLEEAABZRYr+B8ZS+1k27Pg66wb/Pdpe+MzMfQXAbsb+qvjC/MzMfQaROir/mXwu/FMcsQQAAFlFiv4HxlL7WTbs+DrrBv892l74zMx9BpE6Kv+ZfC78UxyxBrmmXv9rgbr4UxyxBAACbVEe/XIICv9ZNuz6kToq/5l8LvxTHLEFwG7G/qr4wvzMzH0Fb+5O/ONuEvzMzH0EAAJtUR79cggK/1k27PqROir/mXwu/FMcsQVv7k78424S/MzMfQRWuZr8OiFG/FMcsQQAAnMIevxqnMb/WTbs+W/uTvzjbhL8zMx9B3qtYv0xJqL8zMx9BJScov160hL8UxyxBAACcwh6/Gqcxv9ZNuz5b+5O/ONuEvzMzH0ElJyi/XrSEvxTHLEEVrma/DohRvxTHLEEAAMe91r6GsFS/1k27Pt6rWL9MSai/MzMfQVl78750P8C/MzMfQZuWur6LmZe/FMcsQQAAx73WvoawVL/WTbs+3qtYv0xJqL8zMx9Bm5a6vouZl78UxyxBJScov160hL8UxyxBAADup0K+XTtpv9ZNuz5Ze/O+dD/AvzMzH0FAIo29qRvLvzMzH0HASDO96imgvxTHLEEAAO6nQr5dO2m/1k27Pll78750P8C/MzMfQcBIM73qKaC/FMcsQZuWur6LmZe/FMcsQQAAqb5VPT/hbb/WTbs+QCKNvakby78zMx9BZBCxPnMgyL8zMx9BAgqRPhPQnb8UxyxBAACpvlU9P+Ftv9ZNuz5AIo29qRvLvzMzH0ECCpE+E9CdvxTHLEHASDO96imgvxTHLEEAAIHxlD4WUWK/1k27PgIKkT4T0J2/FMcsQWQQsT5zIMi/MzMfQXSLPT/Vgbe/MzMfQQAAgfGUPhZRYr/WTbs+AgqRPhPQnb8UxyxBdIs9P9WBt78zMx9BsCwYPwm1kL8UxyxBAABcggI/m1RHv9ZNuz6wLBg/CbWQvxTHLEF0iz0/1YG3vzMzH0GdQYs/wGGavzMzH0EAAFyCAj+bVEe/1k27PrAsGD8JtZC/FMcsQZ1Biz/AYZq/MzMfQdhUXj/genO/FMcsQQAAGqcxP5zCHr/WTbs+nUGLP8Bhmr8zMx9Bsa+uP6l4Zb8zMx9BwxqLP+/zNL8UxyxBAAAapzE/nMIev9ZNuz6dQYs/wGGavzMzH0HDGos/7/M0vxTHLEHYVF4/4HpzvxTHLEEAAIawVD/Hvda+1k27PrGvrj+peGW/MzMfQdmlxj93iga/MzMfQfD/nT8wMNS+FMcsQQAAhrBUP8e91r7WTbs+sa+uP6l4Zb8zMx9B8P+dPzAw1L4UxyxBwxqLP+/zNL8UxyxBAABdO2k/7qdCvtZNuz7ZpcY/d4oGvzMzH0EOgtE/lIjzvTMzH0FPkKY/swrAvRTHLEEAAF07aT/up0K+1k27Ptmlxj93iga/MzMfQU+Qpj+zCsC9FMcsQfD/nT8wMNS+FMcsQQAAm1RHP1yCAj/WTbs+Oui9P6q+MD8zMx9BJsigPzjbhD8zMx9B1SOAPw6IUT8UxyxBAACbVEc/XIICP9ZNuz466L0/qr4wPzMzH0HVI4A/DohRPxTHLEFuG5c/5l8LPxTHLEEAAD/hbT+pvlU91k27Pg6C0T+UiPO9MzMfQdiGzj/Pdpc+MzMfQXg2pD/a4G4+FMcsQQAAP+FtP6m+VT3WTbs+DoLRP5SI870zMx9BeDakP9rgbj4UxyxBT5CmP7MKwL0UxyxBAAAWUWI/gfGUPtZNuz54NqQ/2uBuPhTHLEHYhs4/z3aXPjMzH0E66L0/qr4wPzMzH0EAABZRYj+B8ZQ+1k27Png2pD/a4G4+FMcsQTrovT+qvjA/MzMfQW4blz/mXws/FMcsQQAAQyxzP2gJoD4AAACAUpyjP4X3bT7JzUw9FY6WP8LXCj/JzUw9FY6WP8LXCj8AAMA/AABDLHM/aAmgPgAAAABSnKM/hfdtPsnNTD0VjpY/wtcKPwAAwD9SnKM/hfdtPgAAwD8AAOaYfz8gqmU9AAAAgN3zpT8eT7+9yc1MPVKcoz+F920+yc1MPVKcoz+F920+AADAPwAA5ph/PyCqZT0AAAAA3fOlPx5Pv73JzUw9UpyjP4X3bT4AAMA/3fOlPx5Pv70AAMA/AABlmno/bidRvgAAAIDca50/7WDTvsnNTD3d86U/Hk+/vcnNTD3d86U/Hk+/vQAAwD8AAGWaej9uJ1G+AAAAANxrnT/tYNO+yc1MPd3zpT8eT7+9AADAP9xrnT/tYNO+AADAPwAA34dkP0C85r4AAAAAI5mKPy5DNL/JzUw93GudP+1g077JzUw93GudP+1g074AAMA/AADfh2Q/QLzmvgAAAAAjmYo/LkM0v8nNTD3ca50/7WDTvgAAwD8jmYo/LkM0vwAAwD8AAGjiPj+wlSq/AAAAgC6IXT8MjXK/yc1MPSOZij8uQzS/yc1MPSOZij8uQzS/AADAPwAAaOI+P7CVKr8AAAAALohdPwyNcr/JzUw9I5mKPy5DNL8AAMA/LohdPwyNcr8AAMA/AADGOgw/PS1WvwAAAACMpBc/sCeQv8nNTD0uiF0/DI1yv8nNTD0uiF0/DI1yvwAAwD8AAMY6DD89LVa/AAAAAIykFz+wJ5C/yc1MPS6IXT8MjXK/AADAP4ykFz+wJ5C/AADAPwAAaAmgPkMsc78AAAAAV5WQPu01nb/JzUw9jKQXP7AnkL/JzUw9jKQXP7AnkL8AAMA/AABoCaA+QyxzvwAAAABXlZA+7TWdv8nNTD2MpBc/sCeQvwAAwD9XlZA+7TWdvwAAwD8AACCqZT3mmH+/AAAAAJXRMb14jZ+/yc1MPVeVkD7tNZ2/yc1MPVeVkD7tNZ2/AADAPwAAIKplPeaYf78AAAAAldExvXiNn7/JzUw9V5WQPu01nb8AAMA/ldExvXiNn78AAMA/AABuJ1G+ZZp6vwAAAABYx7m+dwWXv8nNTD2V0TG9eI2fv8nNTD2V0TG9eI2fvwAAwD8AAG4nUb5lmnq/AAAAAFjHub53BZe/yc1MPZXRMb14jZ+/AADAP1jHub53BZe/AADAPwAAQLzmvt+HZL8AAAAAZHYnv74yhL/JzUw9WMe5vncFl7/JzUw9WMe5vncFl78AAMA/AABAvOa+34dkvwAAAABkdie/vjKEv8nNTD1Yx7m+dwWXvwAAwD9kdie/vjKEvwAAwD8AALCVKr9o4j6/AAAAAELAZb9ju1C/yc1MPWR2J7++MoS/yc1MPWR2J7++MoS/AADAPwAAsJUqv2jiPr8AAAAAQsBlv2O7UL/JzUw9ZHYnv74yhL8AAMA/QsBlv2O7UL8AAMA/AAA9LVa/xjoMvwAAAABLwYm/wtcKv8nNTD1CwGW/Y7tQv8nNTD1CwGW/Y7tQvwAAwD8AAD0tVr/GOgy/AAAAgEvBib/C1wq/yc1MPULAZb9ju1C/AADAP0vBib/C1wq/AADAPwAAQyxzv2gJoL4AAAAAiM+Wv4X3bb7JzUw9S8GJv8LXCr/JzUw9S8GJv8LXCr8AAMA/AABDLHO/aAmgvgAAAICIz5a/hfdtvsnNTD1LwYm/wtcKvwAAwD+Iz5a/hfdtvgAAwD8AAOaYf78gqmW9AAAAABMnmb8eT789yc1MPYjPlr+F922+yc1MPYjPlr+F922+AADAPwAA5ph/vyCqZb0AAAAAEyeZvx5Pvz3JzUw9iM+Wv4X3bb4AAMA/EyeZvx5Pvz0AAMA/AABlmnq/bidRPgAAAAARn5C/7WDTPsnNTD0TJ5m/Hk+/PcnNTD0TJ5m/Hk+/PQAAwD8AAGWaer9uJ1E+AAAAABGfkL/tYNM+yc1MPRMnmb8eT789AADAPxGfkL/tYNM+AADAPwAA34dkv0C85j4AAAAAsZh7vy5DND/JzUw9EZ+Qv+1g0z7JzUw9EZ+Qv+1g0z4AAMA/AADfh2S/QLzmPgAAAACxmHu/LkM0P8nNTD0Rn5C/7WDTPgAAwD+xmHu/LkM0PwAAwD8AAGjiPr+wlSo/AAAAAJnuQ78MjXI/yc1MPbGYe78uQzQ/yc1MPbGYe78uQzQ/AADAPwAAaOI+v7CVKj8AAAAAme5DvwyNcj/JzUw9sZh7vy5DND8AAMA/me5DvwyNcj8AAMA/AADGOgy/PS1WPwAAAIDvFfy+sCeQP8nNTD2Z7kO/DI1yP8nNTD2Z7kO/DI1yPwAAwD8AAMY6DL89LVY/AAAAAO8V/L6wJ5A/yc1MPZnuQ78MjXI/AADAP+8V/L6wJ5A/AADAPwAAaAmgvkMscz8AAACAW8Q6vu01nT/JzUw97xX8vrAnkD/JzUw97xX8vrAnkD8AAMA/AABoCaC+QyxzPwAAAABbxDq+7TWdP8nNTD3vFfy+sCeQPwAAwD9bxDq+7TWdPwAAwD8AACCqZb3mmH8/AAAAALjaEj54jZ8/yc1MPVvEOr7tNZ0/yc1MPVvEOr7tNZ0/AADAPwAAIKplveaYfz8AAAAAuNoSPniNnz/JzUw9W8Q6vu01nT8AAMA/uNoSPniNnz8AAMA/AABuJ1E+ZZp6PwAAAICB+uw+dwWXP8nNTD242hI+eI2fP8nNTD242hI+eI2fPwAAwD8AAG4nUT5lmno/AAAAAIH67D53BZc/yc1MPbjaEj54jZ8/AADAP4H67D53BZc/AADAPwAAQLzmPt+HZD8AAACA+Q9BP74yhD/JzUw9gfrsPncFlz/JzUw9gfrsPncFlz8AAMA/AABAvOY+34dkPwAAAAD5D0E/vjKEP8nNTD2B+uw+dwWXPwAAwD/5D0E/vjKEPwAAwD8AALCVKj9o4j4/AAAAgNZZfz9ju1A/yc1MPfkPQT++MoQ/yc1MPfkPQT++MoQ/AADAPwAAsJUqP2jiPj8AAAAA1ll/P2O7UD/JzUw9+Q9BP74yhD8AAMA/1ll/P2O7UD8AAMA/AAA9LVY/xjoMPwAAAIAVjpY/wtcKP8nNTD3WWX8/Y7tQP8nNTD3WWX8/Y7tQPwAAwD8AAD0tVj/GOgw/AAAAABWOlj/C1wo/yc1MPdZZfz9ju1A/AADAPxWOlj/C1wo/AADAPwAAtBY3PwX9cD5beii/AhGePyGTZT5NvSYio3iRP0XyBT8AAAAAFY6WP8LXCj/JzUw9AAC0Fjc/Bf1wPlt6KL8CEZ4/IZNlPk29JiIVjpY/wtcKP8nNTD1SnKM/hfdtPsnNTD0AAHVxQD8F6yw9W3oov93zpT8eT7+9yc1MPWlToD/2j7i9f5UwIwIRnj8hk2U+Tb0mIgAAdXFAPwXrLD1beii/3fOlPx5Pv73JzUw9AhGePyGTZT5NvSYiUpyjP4X3bT7JzUw9AADLQSE/gCnTPlt6KL8VjpY/wtcKP8nNTD2jeJE/RfIFPwAAAAAQzHY/715JPwAAAAAAAMtBIT+AKdM+W3oovxWOlj/C1wo/yc1MPRDMdj/vXkk/AAAAANZZfz9ju1A/yc1MPQAA2a48P7B5Hb5beii/bBiYP5Tsy74AAAAAaVOgP/aPuL1/lTAj3fOlPx5Pv73JzUw9AADZrjw/sHkdvlt6KL9sGJg/lOzLvgAAAADd86U/Hk+/vcnNTD3ca50/7WDTvsnNTD0AAHsQLD9pua2+W3oov6TvhT/B5y2/AAAAAGwYmD+U7Mu+AAAAANxrnT/tYNO+yc1MPQAAexAsP2m5rb5beii/pO+FP8HnLb8AAAAA3GudP+1g077JzUw9I5mKPy5DNL/JzUw9AABIuA8/mG8Av1t6KL8uiF0/DI1yv8nNTD26K1Y/Rv9pv0tr3aKk74U/wectvwAAAAAAAEi4Dz+YbwC/W3oovy6IXT8MjXK/yc1MPaTvhT/B5y2/AAAAACOZij8uQzS/yc1MPQAAgCnTPstBIb9beii/EL8SPz4Si78AAAAAuitWP0b/ab9La92iLohdPwyNcr/JzUw9AACAKdM+y0Ehv1t6KL8QvxI/PhKLvwAAAAAuiF0/DI1yv8nNTD2MpBc/sCeQv8nNTD0AAAX9cD60Fje/W3oovyZjjD6dqpe/Faq9IhC/Ej8+Eou/AAAAAIykFz+wJ5C/yc1MPQAABf1wPrQWN79beii/JmOMPp2ql78Vqr0ijKQXP7AnkL/JzUw9V5WQPu01nb/JzUw9AAAF6yw9dXFAv1t6KL+V0TG9eI2fv8nNTD1EUyS9A+2ZvwAAAAAmY4w+naqXvxWqvSIAAAXrLD11cUC/W3oov5XRMb14jZ+/yc1MPSZjjD6dqpe/Faq9IleVkD7tNZ2/yc1MPQAAsHkdvtmuPL9beii//1Kyvgeykb8AAAAARFMkvQPtmb8AAAAAldExvXiNn7/JzUw9AACweR2+2a48v1t6KL//UrK+B7KRvwAAAACV0TG9eI2fv8nNTD1Yx7m+dwWXv8nNTD0AAGm5rb57ECy/W3oov/caIb99En+/AAAAAP9Ssr4HspG/AAAAAFjHub53BZe/yc1MPQAAabmtvnsQLL9beii/9xohv30Sf78AAAAAWMe5vncFl7/JzUw9ZHYnv74yhL/JzUw9AACYbwC/SLgPv1t6KL97Ml2/715Jv50tuaD3GiG/fRJ/vwAAAABkdie/vjKEv8nNTD0AAJhvAL9IuA+/W3oov3syXb/vXkm/nS25oGR2J7++MoS/yc1MPULAZb9ju1C/yc1MPQAAy0Ehv4Ap075beii/S8GJv8LXCr/JzUw92KuEv0XyBb8AAAAAezJdv+9eSb+dLbmgAADLQSG/gCnTvlt6KL9LwYm/wtcKv8nNTD17Ml2/715Jv50tuaBCwGW/Y7tQv8nNTD0AALQWN78F/XC+W3oov4jPlr+F922+yc1MPTdEkb8hk2W+s5laIdirhL9F8gW/AAAAAAAAtBY3vwX9cL5beii/iM+Wv4X3bb7JzUw92KuEv0XyBb8AAAAAS8GJv8LXCr/JzUw9AAB1cUC/BessvVt6KL+ehpO/9o+4PRVAKCI3RJG/IZNlvrOZWiGIz5a/hfdtvsnNTD0AAHVxQL8F6yy9W3oov56Gk7/2j7g9FUAoIojPlr+F922+yc1MPRMnmb8eT789yc1MPQAA2a48v7B5HT5beii/okuLv5Tsyz4AAAAAnoaTv/aPuD0VQCgiEyeZvx5Pvz3JzUw9AADZrjy/sHkdPlt6KL+iS4u/lOzLPgAAAAATJ5m/Hk+/PcnNTD0Rn5C/7WDTPsnNTD0AAHsQLL9pua0+W3oov7JFcr/B5y0/AAAAAKJLi7+U7Ms+AAAAABGfkL/tYNM+yc1MPQAAexAsv2m5rT5beii/skVyv8HnLT8AAAAAEZ+Qv+1g0z7JzUw9sZh7vy5DND/JzUw9AABIuA+/mG8AP1t6KL8lkjy/Rv9pP23CkqGyRXK/wectPwAAAACxmHu/LkM0P8nNTD0AAEi4D7+YbwA/W3oovyWSPL9G/2k/bcKSobGYe78uQzQ/yc1MPZnuQ78MjXI/yc1MPQAAgCnTvstBIT9beii/9kryvj4Siz8GtB0jJZI8v0b/aT9twpKhme5DvwyNcj/JzUw9AACAKdO+y0EhP1t6KL/2SvK+PhKLPwa0HSOZ7kO/DI1yP8nNTD3vFfy+sCeQP8nNTD0AAAX9cL60Fjc/W3oov1vEOr7tNZ0/yc1MPfhfMr6dqpc/AAAAAPZK8r4+Eos/BrQdIwAABf1wvrQWNz9beii/W8Q6vu01nT/JzUw99kryvj4Siz8GtB0j7xX8vrAnkD/JzUw9AAAF6yy9dXFAP1t6KL8kew8+A+2ZPwAAAAD4XzK+naqXPwAAAABbxDq+7TWdP8nNTD0AAAXrLL11cUA/W3oovyR7Dz4D7Zk/AAAAAFvEOr7tNZ0/yc1MPbjaEj54jZ8/yc1MPQAAsHkdPtmuPD9beii/gfrsPncFlz/JzUw9KYblPgeykT/DUhShJHsPPgPtmT8AAAAAAACweR0+2a48P1t6KL+B+uw+dwWXP8nNTD0kew8+A+2ZPwAAAAC42hI+eI2fP8nNTD0AAGm5rT57ECw/W3oov4y0Oj99En8/JH6eHimG5T4HspE/w1IUoYH67D53BZc/yc1MPQAAabmtPnsQLD9beii/jLQ6P30Sfz8kfp4egfrsPncFlz/JzUw9+Q9BP74yhD/JzUw9AACYbwA/SLgPP1t6KL8QzHY/715JPwAAAACMtDo/fRJ/PyR+nh75D0E/vjKEP8nNTD0AAJhvAD9IuA8/W3oovxDMdj/vXkk/AAAAAPkPQT++MoQ/yc1MPdZZfz9ju1A/yc1MPQAAAACAvwAAAAAAAAAAmpnZv5mZ2T9nZsY/mpnZv5mZ2b9nZsY/mpnZv5mZ2b9mZh5BAAAAAIC/AAAAgAAAAACamdm/mZnZP2dmxj+amdm/mZnZv2ZmHkGamdm/mZnZP2ZmHkEAAAAAAIAAAIC/AAAAADMz078AAOC/Z2bGP///3z8AAOC/Z2bGP///3z8AAOC/ZmYeQQAAAAAAAAAAgL8AAAAAMzPTvwAA4L9nZsY////fPwAA4L9mZh5BMzPTvwAA4L9mZh5BAAAAAIA/AAAAgAAAAABmZuY/mZnZP2ZmHkFmZuY/mZnZv2ZmHkFmZuY/mZnZv2dmxj8AAAAAgD8AAAAAAAAAAGZm5j+Zmdk/ZmYeQWZm5j+Zmdm/Z2bGP2Zm5j+Zmdk/Z2bGPwAAAAAAgAAAgD8AAACA///fPwAA4D9nZsY/MzPTvwAA4D9nZsY/MzPTvwAA4D9mZh5BAAAAAAAAAACAPwAAAAD//98/AADgP2dmxj8zM9O/AADgP2ZmHkH//98/AADgP2ZmHkEAAAEFNb8AAACA5QQ1P5qZ2b+Zmdk/ZmYeQZqZ2b+Zmdm/ZmYeQTMz07+Zmdm/MzMfQQAAAQU1vwAAAADlBDU/mpnZv5mZ2T9mZh5BMzPTv5mZ2b8zMx9BMzPTv5mZ2T8zMx9BAADzBDW/8wQ1PwAAAAAzM9O/AADgP2dmxj+amdm/mZnZP2dmxj+amdm/mZnZP2ZmHkEAAPMENb/zBDU/AAAAADMz078AAOA/Z2bGP5qZ2b+Zmdk/ZmYeQTMz078AAOA/ZmYeQQAA8wQ1vwAAAADzBDW/mpnZv5mZ2b9nZsY/mpnZv5mZ2T9nZsY/MzPTv5mZ2T8AAMA/AADzBDW/AAAAAPMENb+amdm/mZnZv2dmxj8zM9O/mZnZPwAAwD8zM9O/mZnZvwAAwD8AAPMENb/zBDW/AAAAAJqZ2b+Zmdm/Z2bGPzMz078AAOC/Z2bGPzMz078AAOC/ZmYeQQAA8wQ1v/MENb8AAAAAmpnZv5mZ2b9nZsY/MzPTvwAA4L9mZh5BmpnZv5mZ2b9mZh5BAAAAAACA8wQ1P/MENb8zM9O/mZnZPwAAwD8zM9O/AADgP2dmxj///98/AADgP2dmxj8AAAAAAADzBDU/8wQ1vzMz07+Zmdk/AADAP///3z8AAOA/Z2bGP///3z+Zmdk/AADAPwAAAAAAAPMENb/zBDW/MzPTvwAA4L9nZsY/MzPTv5mZ2b8AAMA////fP5mZ2b8AAMA/AAAAAAAA8wQ1v/MENb8zM9O/AADgv2dmxj///98/mZnZvwAAwD///98/AADgv2dmxj8AAPMENT/zBDW/AAAAAGZm5j+Zmdm/ZmYeQf//3z8AAOC/ZmYeQf//3z8AAOC/Z2bGPwAA8wQ1P/MENb8AAAAAZmbmP5mZ2b9mZh5B///fPwAA4L9nZsY/ZmbmP5mZ2b9nZsY/AADzBDU/AAAAAPMENb9mZuY/mZnZP2dmxj9mZuY/mZnZv2dmxj///98/mZnZvwAAwD8AAPMENT8AAAAA8wQ1v2Zm5j+Zmdk/Z2bGP///3z+Zmdm/AADAP///3z+Zmdk/AADAPwAAOs0TPzrNE786zRO////fPwAA4L9nZsY////fP5mZ2b8AAMA/ZmbmP5mZ2b9nZsY/AADzBDU/8wQ1PwAAAIBmZuY/mZnZP2dmxj///98/AADgP2dmxj///98/AADgP2ZmHkEAAPMENT/zBDU/AAAAAGZm5j+Zmdk/Z2bGP///3z8AAOA/ZmYeQWZm5j+Zmdk/ZmYeQQAAOs0TPzrNEz86zRO////fP5mZ2T8AAMA////fPwAA4D9nZsY/ZmbmP5mZ2T9nZsY/AAA6zRO/Os0TvzrNE7+amdm/mZnZv2dmxj8zM9O/mZnZvwAAwD8zM9O/AADgv2dmxj8AAAAAAIABBTW/5QQ1P///3z8AAOC/ZmYeQf//3z+Zmdm/MzMfQTMz07+Zmdm/MzMfQQAAAAAAAAEFNb/lBDU////fPwAA4L9mZh5BMzPTv5mZ2b8zMx9BMzPTvwAA4L9mZh5BAAABBTU/AAAAAOUENT///98/mZnZPzMzH0H//98/mZnZvzMzH0FmZuY/mZnZv2ZmHkEAAAEFNT8AAAAA5QQ1P///3z+Zmdk/MzMfQWZm5j+Zmdm/ZmYeQWZm5j+Zmdk/ZmYeQQAAOs0TvzrNEz86zRO/mpnZv5mZ2T9nZsY/MzPTvwAA4D9nZsY/MzPTv5mZ2T8AAMA/AAAAAAAAAQU1P+UENT///98/mZnZPzMzH0H//98/AADgP2ZmHkEzM9O/AADgP2ZmHkEAAAAAAAABBTU/5QQ1P///3z+Zmdk/MzMfQTMz078AAOA/ZmYeQTMz07+Zmdk/MzMfQQAAQs0TP0LNEz8rzRM/ZmbmP5mZ2T9mZh5B///fPwAA4D9mZh5B///fP5mZ2T8zMx9BAABCzRO/Qs0TvyvNEz+amdm/mZnZv2ZmHkEzM9O/AADgv2ZmHkEzM9O/mZnZvzMzH0EAAELNE79CzRM/K80TP5qZ2b+Zmdk/ZmYeQTMz07+Zmdk/MzMfQTMz078AAOA/ZmYeQQAAQs0TP0LNE78rzRM/ZmbmP5mZ2b9mZh5B///fP5mZ2b8zMx9B///fPwAA4L9mZh5BAAC+bpAocRZxpwAAgD8OgtE/lIjzvTMzH0HZpcY/d4oGvzMzH0H//98/mZnZvzMzH0EAAH7UISglZKOnAACAP7Gvrj+peGW/MzMfQf//3z+Zmdm/MzMfQdmlxj93iga/MzMfQQAA3lGNKQAAAIAAAIA////fP5mZ2T8zMx9BDoLRP5SI870zMx9B///fP5mZ2b8zMx9BAAAzvIwnMdhVqAAAgD///98/mZnZvzMzH0F0iz0/1YG3vzMzH0FkELE+cyDIvzMzH0EAAA0B6CfgVM+nAACAP///3z+Zmdm/MzMfQbGvrj+peGW/MzMfQZ1Biz/AYZq/MzMfQQAAkr20J20GCqgAAIA////fP5mZ2b8zMx9BnUGLP8Bhmr8zMx9BdIs9P9WBt78zMx9BAABFggUnh5UUqQAAgD9kELE+cyDIvzMzH0FAIo29qRvLvzMzH0H//98/mZnZvzMzH0EAAC/YVSgyvIwnAACAPzrovT+qvjA/MzMfQdiGzj/Pdpc+MzMfQf//3z+Zmdk/MzMfQQAAg5UUKUGCBScAAIA/DoLRP5SI870zMx9B///fP5mZ2T8zMx9B2IbOP892lz4zMx9BAABtBgookr20JwAAgD8myKA/ONuEPzMzH0E66L0/qr4wPzMzH0H//98/mZnZPzMzH0EAAOBUzycNAegnAACAP///3z+Zmdk/MzMfQXNFcj9MSag/MzMfQSbIoD8424Q/MzMfQQAAdBZxJ8BukCgAAIA////fP5mZ2T8zMx9Bc/csPqkbyz8zMx9BQVcTP3Q/wD8zMx9BAAAmZKMnftQhKAAAgD///98/mZnZPzMzH0FBVxM/dD/APzMzH0FzRXI/TEmoPzMzH0EAAAAAAADmUY0pAACAPzMz07+Zmdk/MzMfQXP3LD6pG8s/MzMfQf//3z+Zmdk/MzMfQQAAdhZxp8FukKgAAIA/MzPTv5mZ2b8zMx9BQCKNvakby78zMx9BWXvzvnQ/wL8zMx9BAAAnZKOngNQhqAAAgD8zM9O/mZnZvzMzH0FZe/O+dD/AvzMzH0Heq1i/TEmovzMzH0EAAG8GCqiUvbSnAACAP3Absb+qvjC/MzMfQTMz07+Zmdm/MzMfQVv7k78424S/MzMfQQAA4lTPpxAB6KcAAIA/3qtYv0xJqL8zMx9BW/uTvzjbhL8zMx9BMzPTv5mZ2b8zMx9BAAAz2FWoNbyMpwAAgD8zM9O/mZnZvzMzH0FwG7G/qr4wvzMzH0EOusG/z3aXvjMzH0EAAIyVFKlJggWnAACAPw66wb/Pdpe+MzMfQUS1xL+UiPM9MzMfQTMz07+Zmdm/MzMfQQAAAAAAgOZRjakAAIA/MzPTv5mZ2b8zMx9B///fP5mZ2b8zMx9BQCKNvakby78zMx9BAACUvbSnbgYKKAAAgD8zM9O/mZnZPzMzH0Gl6Xy/wGGaPzMzH0Hf8SO/1YG3PzMzH0EAADS8jKcy2FUoAACAPzMz07+Zmdk/MzMfQd/xI7/Vgbc/MzMfQXW6e75zIMg/MzMfQQAAwm6QqHgWcScAAIA/MzPTv5mZ2T8zMx9BRLXEv5SI8z0zMx9BD9m5v3eKBj8zMx9BAAAQAein41TPJwAAgD+l6Xy/wGGaPzMzH0EzM9O/mZnZPzMzH0Hm4qG/qXhlPzMzH0EAAIDUIagoZKMnAACAPw/Zub93igY/MzMfQebiob+peGU/MzMfQTMz07+Zmdk/MzMfQQAA7lGNqQAAAAAAAIA/MzPTv5mZ2T8zMx9BMzPTv5mZ2b8zMx9BRLXEv5SI8z0zMx9BAABFggWniJUUKQAAgD9z9yw+qRvLPzMzH0EzM9O/mZnZPzMzH0F1unu+cyDIPzMzH0EAAAAAAAAAAAAAAACAv4jPlr+F922+AADAP0vBib/C1wq/AADAPzMz07+Zmdm/AADAPwAAAAAAgAAAAAAAAIC/QsBlv2O7UL8AAMA/MzPTv5mZ2b8AAMA/S8GJv8LXCr8AAMA/AAAAAACAAAAAAAAAgL8TJ5m/Hk+/PQAAwD+Iz5a/hfdtvgAAwD8zM9O/mZnZvwAAwD8AAAAAAIAAAAAAAACAvzMz07+Zmdm/AADAP1jHub53BZe/AADAP5XRMb14jZ+/AADAPwAAAAAAgAAAAAAAAIC/MzPTv5mZ2b8AAMA/QsBlv2O7UL8AAMA/ZHYnv74yhL8AAMA/AAAAAACAAAAAAAAAgL8zM9O/mZnZvwAAwD9kdie/vjKEvwAAwD9Yx7m+dwWXvwAAwD8AAAAAAIAAAAAAAACAv5XRMb14jZ+/AADAP///3z+Zmdm/AADAPzMz07+Zmdm/AADAPwAAAAAAAAAAAAAAAIC/EZ+Qv+1g0z4AAMA/EyeZvx5Pvz0AAMA/MzPTv5mZ2T8AAMA/AAAAAACAAAAAAAAAgL8zM9O/mZnZvwAAwD8zM9O/mZnZPwAAwD8TJ5m/Hk+/PQAAwD8AAAAAAAAAAAAAAACAv7GYe78uQzQ/AADAPxGfkL/tYNM+AADAPzMz07+Zmdk/AADAPwAAAAAAgAAAAAAAAIC/MzPTv5mZ2T8AAMA/me5DvwyNcj8AAMA/sZh7vy5DND8AAMA/AAAAAAAAAAAAAAAAgL8zM9O/mZnZPwAAwD9bxDq+7TWdPwAAwD/vFfy+sCeQPwAAwD8AAAAAAAAAAAAAAACAvzMz07+Zmdk/AADAP+8V/L6wJ5A/AADAP5nuQ78MjXI/AADAPwAAAAAAAAAAAAAAAIC/uNoSPniNnz8AAMA/W8Q6vu01nT8AAMA/MzPTv5mZ2T8AAMA/AAAAAAAAAAAAAAAAgL///98/mZnZvwAAwD9XlZA+7TWdvwAAwD+MpBc/sCeQvwAAwD8AAAAAAIAAAACAAACAv///3z+Zmdm/AADAP4ykFz+wJ5C/AADAPy6IXT8MjXK/AADAPwAAAAAAAAAAAAAAAIC/3GudP+1g074AAMA////fP5mZ2b8AAMA/I5mKPy5DNL8AAMA/AAAAAACAAAAAgAAAgL8uiF0/DI1yvwAAwD8jmYo/LkM0vwAAwD///98/mZnZvwAAwD8AAAAAAIAAAACAAACAv///3z+Zmdm/AADAP9xrnT/tYNO+AADAP93zpT8eT7+9AADAPwAAAAAAgAAAAIAAAIC/3fOlPx5Pv70AAMA////fP5mZ2T8AAMA////fP5mZ2b8AAMA/AAAAAACAAAAAgAAAgL///98/mZnZvwAAwD+V0TG9eI2fvwAAwD9XlZA+7TWdvwAAwD8AAAAAAAAAAACAAACAv///3z+Zmdk/AADAP/kPQT++MoQ/AADAP4H67D53BZc/AADAPwAAAAAAAAAAAIAAAIC////fP5mZ2T8AAMA/gfrsPncFlz8AAMA/uNoSPniNnz8AAMA/AAAAAACAAAAAAAAAgL///98/mZnZPwAAwD9SnKM/hfdtPgAAwD8VjpY/wtcKPwAAwD8AAAAAAAAAAAAAAACAv/kPQT++MoQ/AADAP///3z+Zmdk/AADAP9ZZfz9ju1A/AADAPwAAAAAAgAAAAAAAAIC/FY6WP8LXCj8AAMA/1ll/P2O7UD8AAMA////fP5mZ2T8AAMA/AAAAAAAAAAAAgAAAgL///98/mZnZPwAAwD/d86U/Hk+/vQAAwD9SnKM/hfdtPgAAwD8AAAAAAAAAAAAAAACAvzMz07+Zmdk/AADAP///3z+Zmdk/AADAP7jaEj54jZ8/AADAPwAApjz+IejwAKMAAIC/o3iRP0XyBT8AAAAAAhGePyGTZT5NvSYiovFJP98mDz47kRkiAACmPP4h6PAAowAAgL+jeJE/RfIFPwAAAACi8Uk/3yYPPjuRGSKBPDo/jQunPt1iRiEAAOBQryLyIdSjAACAvwIRnj8hk2U+Tb0mImlToD/2j7i9f5UwI/XCTD8kK2a9VQT1IgAA4FCvIvIh1KMAAIC/AhGePyGTZT5NvSYi9cJMPyQrZr1VBPUiovFJP98mDz47kRkiAABBYrihNHJxoQAAgL8QzHY/715JPwAAAACjeJE/RfIFPwAAAACBPDo/jQunPt1iRiEAAEFiuKE0cnGhAACAvxDMdj/vXkk/AAAAAIE8Oj+NC6c+3WJGIZy1Hj9nIfs+3WJGIQAAneQfI0LpBiQAAIC/aVOgP/aPuL1/lTAjbBiYP5Tsy74AAAAAVH9CP5BQfr7dYkYhAACd5B8jQukGJAAAgL9pU6A/9o+4vX+VMCNUf0I/kFB+vt1iRiH1wkw/JCtmvVUE9SIAAPwHmKFHUZ6hAACAv4y0Oj99En8/JH6eHhDMdj/vXkk/AAAAAJy1Hj9nIfs+3WJGIQAA/AeYoUdRnqEAAIC/jLQ6P30Sfz8kfp4enLUeP2ch+z7dYkYhXnryPgQNHz9+eUkhAAC7vcShmqNGIQAAgL9sGJg/lOzLvgAAAACk74U/wectvwAAAADP2Ss/yeDYvt1iRiEAALu9xKGao0YhAACAv2wYmD+U7Mu+AAAAAM/ZKz/J4Ni+3WJGIVR/Qj+QUH6+3WJGIQAA10UzIyC3myMAAIC/pO+FP8HnLb8AAAAAuitWP0b/ab9La92ifl0KP9LoEb9GiWKiAADXRTMjILebIwAAgL+k74U/wectvwAAAAB+XQo/0ugRv0aJYqLP2Ss/yeDYvt1iRiEAAPJVp6Oq2gKjAACAv7orVj9G/2m/S2vdohC/Ej8+Eou/AAAAACKlwD63by2/3WJGIQAA8lWno6raAqMAAIC/uitWP0b/ab9La92iIqXAPrdvLb/dYkYhfl0KP9LoEb9GiWKiAAABLo2j81LTogAAgL8QvxI/PhKLvwAAAAAmY4w+naqXvxWqvSIIWkI+1yQ9v10QjyIAAAEujaPzUtOiAACAvxC/Ej8+Eou/AAAAAAhaQj7XJD2/XRCPIiKlwD63by2/3WJGIQAAybiWI2yVmSAAAIC/JmOMPp2ql78Vqr0iRFMkvQPtmb8AAAAA6/PKuyv2P7/dYkYhAADJuJYjbJWZIAAAgL8mY4w+naqXvxWqvSLr88q7K/Y/v91iRiEIWkI+1yQ9v10QjyIAAFAPtCA+vtchAACAv0RTJL0D7Zm/AAAAAP9Ssr4HspG/AAAAAGYdS76JsjW/3WJGIQAAUA+0ID6+1yEAAIC/RFMkvQPtmb8AAAAAZh1LvomyNb/dYkYh6/PKuyv2P7/dYkYhAACao0Yhu73EIQAAgL//UrK+B7KRvwAAAAD3GiG/fRJ/vwAAAAA0R7++BA0fv91iRiEAAJqjRiG7vcQhAACAv/9Ssr4HspG/AAAAADRHv74EDR+/3WJGIWYdS76JsjW/3WJGIQAAObQGIrmNISEAAIC/9xohv30Sf78AAAAAezJdv+9eSb+dLbmgBxwFv2ch+77tpgwhAAA5tAYiuY0hIQAAgL/3GiG/fRJ/vwAAAAAHHAW/ZyH7vu2mDCE0R7++BA0fv91iRiEAADcOcCEZXP4hAACAv3syXb/vXkm/nS25oNirhL9F8gW/AAAAAOyiIL+NC6e+3WJGIQAANw5wIRlc/iEAAIC/ezJdv+9eSb+dLbmg7KIgv40Lp77dYkYhBxwFv2ch+77tpgwhAABIneUgOTNAIgAAgL/Yq4S/RfIFvwAAAAA3RJG/IZNlvrOZWiENWDC/3yYPvvRYpyEAAEid5SA5M0AiAACAv9irhL9F8gW/AAAAAA1YML/fJg++9FinIeyiIL+NC6e+3WJGIQAAixFSn8CetCIAAIC/N0SRvyGTZb6zmVohnoaTv/aPuD0VQCgiYCkzvyQrZj1oghoiAACLEVKfwJ60IgAAgL83RJG/IZNlvrOZWiFgKTO/JCtmPWiCGiINWDC/3yYPvvRYpyEAAGRXjKGs1ASjAACAv56Gk7/2j7g9FUAoIqJLi7+U7Ms+AAAAAL/lKL+QUH4+3WJGIQAAZFeMoazUBKMAAIC/noaTv/aPuD0VQCgiv+Uov5BQfj7dYkYhYCkzvyQrZj1oghoiAAC7vcQhmqNGoQAAgL+iS4u/lOzLPgAAAACyRXK/wectPwAAAAA6QBK/yeDYPt1iRiEAALu9xCGao0ahAACAv6JLi7+U7Ms+AAAAADpAEr/J4Ng+3WJGIb/lKL+QUH4+3WJGIQAASxhJoSjXhaIAAIC/skVyv8HnLT8AAAAAJZI8v0b/aT9twpKh0ofhvtLoET/YyXUfAABLGEmhKNeFogAAgL+yRXK/wectPwAAAADSh+G+0ugRP9jJdR86QBK/yeDYPt1iRiEAALyD4SPWBKYjAACAvyWSPL9G/2k/bcKSofZK8r4+Eos/BrQdI/hxjb63by0/fXjdIgAAvIPhI9YEpiMAAIC/JZI8v0b/aT9twpKh+HGNvrdvLT99eN0i0ofhvtLoET/YyXUfAABS7fOjiTXwogAAgL/2SvK+PhKLPwa0HSP4XzK+naqXPwAAAABq57e91yQ9P91iRiEAAFLt86OJNfCiAACAv/ZK8r4+Eos/BrQdI2rnt73XJD0/3WJGIfhxjb63by0/fXjdIgAAnbfFH+cK3KEAAIC/+F8yvp2qlz8AAAAAJHsPPgPtmT8AAAAA5XvZPSv2Pz/dYkYhAACdt8Uf5wrcoQAAgL/4XzK+naqXPwAAAADle9k9K/Y/P91iRiFq57e91yQ9P91iRiEAAAL7DKKK/MWhAACAvyR7Dz4D7Zk/AAAAACmG5T4HspE/w1IUod3BmD6JsjU/OMzTIAAAAvsMoor8xaEAAIC/JHsPPgPtmT8AAAAA3cGYPomyNT84zNMg5XvZPSv2Pz/dYkYhAAA2/FAhMZsmogAAgL8phuU+B7KRP8NSFKGMtDo/fRJ/PyR+nh5eevI+BA0fP355SSEAADb8UCExmyaiAACAvymG5T4HspE/w1IUoV568j4EDR8/fnlJId3BmD6JsjU/OMzTIAAA8bIoKp5GSqgAAIA/PXEAPhC/XD4AAEBBoVqJPWc3aT4AAEBBn35kPV8Ynj0AAEBBAAAJoUQqI5nVqAAAgD89cQA+EL9cPgAAQEGffmQ9XxiePQAAQEH8wpo9UKSVPQAAQEEAAFGdpqqhtB4qAACAP5jxNj6WO0E+AABAQT1xAD4Qv1w+AABAQfzCmj1QpJU9AABAQQAAUP+wqsg3MSoAAIA/mPE2PpY7QT4AAEBB/MKaPVCklT0AAEBBJ7W/PZz9gj0AAEBBAAAAAAAAAAAAgAAAgD+hWok9ZzdpPgAAQEF6D/c7DstlPgAAQEHj2RE9TcabPQAAQEEAAAAAAIAAAAAAAACAP6FaiT1nN2k+AABAQePZET1Nxps9AABAQZ9+ZD1fGJ49AABAQQAAAAAAAAAAAAAAAIA/eg/3Ow7LZT4AAEBBPRdJvb21Uj4AAEBBIXOGPJjWjj0AAEBBAAAAAAAAAAAAAAAAgD96D/c7DstlPgAAQEEhc4Y8mNaOPQAAQEHj2RE9TcabPQAAQEEAAAAAAAAAAAAAAACAPz0XSb29tVI+AABAQaGzyr1iRDE+AABAQaCoAbrdVXA9AABAQQAAAAAAAAAAAAAAAIA/PRdJvb21Uj4AAEBBoKgBut1VcD0AAEBBIXOGPJjWjj0AAEBBAAAfOzequSsXqgAAgD+hs8q9YkQxPgAAQEFtCA6+br4DPgAAQEFCumS8p50yPQAAQEEAAFFTF6rgOQKqAACAP6Gzyr1iRDE+AABAQUK6ZLynnTI9AABAQaCoAbrdVXA9AABAQQAAd3KcKdSMXyoAAIA/bQgOvm6+Az4AAEBB5ospvid8mj0AAEBB8/e8vKJy0TwAAEBBAADzTVMpsw9DKgAAgD9tCA6+br4DPgAAQEHz97y8onLRPAAAQEFCumS8p50yPQAAQEEAAAAAAAAAAAAAAACAP+aLKb4nfJo9AABAQT0ENr420Ys8AABAQS3I3rzBj707AABAQQAAAAAAAAAAAIAAAIA/5ospvid8mj0AAEBBLcjevMGPvTsAAEBB8/e8vKJy0TwAAEBBAACChkKm/3mGqQAAgD89BDa+NtGLPAAAQEHklzK+t+otvQAAQEHnf9W8DstrvAAAQEEAAE627qdFFsepAACAPz0ENr420Ys8AABAQed/1bwOy2u8AABAQS3I3rzBj707AABAQQAAA/rEKMjIS6oAAIA/5JcyvrfqLb0AAEBBk4IfvvLxyr0AAEBBEcGhvBaTCb0AAEBBAAB5ZcMoUldIqgAAgD/klzK+t+otvQAAQEERwaG8FpMJvQAAQEHnf9W8DstrvAAAQEEAAK+qJaogMywqAACAP5OCH77y8cq9AABAQXEi/L36jBi+AABAQdgkDrxJ0069AABAQQAAkNM5qm03aSoAAIA/k4IfvvLxyr0AAEBB2CQOvEnTTr0AAEBBEcGhvBaTCb0AAEBBAAAQpY0qQ7ioqgAAgD9xIvy9+owYvgAAQEGJFqG9ljtBvgAAQEH7d9E7nP2CvQAAQEEAALtUnipgI8KqAACAP3Ei/L36jBi+AABAQft30Tuc/YK9AABAQdgkDrxJ0069AABAQQAAyyIgq4UnkyoAAIA/iRahvZY7Qb4AAEBBTlfQvBC/XL4AAEBBqybIPFCklb0AAEBBAAAh4h2rWCOPKgAAgD+JFqG9ljtBvgAAQEGrJsg8UKSVvQAAQEH7d9E7nP2CvQAAQEEAAF1YxioWKYupAACAP05X0LwQv1y+AABAQQzkBj1nN2m+AABAQa4aNT1fGJ69AABAQQAAtkPDKlb1hKkAAIA/TlfQvBC/XL4AAEBBrho1PV8Ynr0AAEBBqybIPFCklb0AAEBBAAAHOSaqvJv7qAAAgD8M5AY9ZzdpvgAAQEGvW709DstlvgAAQEG134M9TcabvQAAQEEAAOjWRKqKz8ioAACAPwzkBj1nN2m+AABAQbXfgz1Nxpu9AABAQa4aNT1fGJ69AABAQQAAAAAAgAAAAAAAAIA/r1u9PQ7LZb4AAEBBIqwYPr21Ur4AAEBB3i+rPZjWjr0AAEBBAAAAAACAAAAAgAAAgD+vW709DstlvgAAQEHeL6s9mNaOvQAAQEG134M9TcabvQAAQEEAAO4T+amR+VqpAACAPyKsGD69tVK+AABAQSTASz5iRDG+AABAQfjPzT3dVXC9AABAQQAAyN+zqeM+LakAAIA/IqwYPr21Ur4AAEBB+M/NPd1VcL0AAEBB3i+rPZjWjr0AAEBBAAAPepgpc6TfKQAAgD8kwEs+YkQxvgAAQEHAbnQ+br4DvgAAQEHvY+k9p50yvQAAQEEAABAZNylIpbcpAACAPyTASz5iRDG+AABAQe9j6T2nnTK9AABAQfjPzT3dVXC9AABAQQAAAAAAAAAAAAAAAIA/wG50Pm6+A74AAEBBHfmHPid8mr0AAEBBowr8PaJy0bwAAEBBAAAAAACAAAAAgAAAgD/AbnQ+br4DvgAAQEGjCvw9onLRvAAAQEHvY+k9p50yvQAAQEEAAGYeBCpmNRqqAACAP4x3ZD76jBg+AABAQZjxNj6WO0E+AABAQSe1vz2c/YI9AABAQQAA4DkCKlFTF6oAAIA/jHdkPvqMGD4AAEBBJ7W/PZz9gj0AAEBBQpHePUnTTj0AAEBBAAAAAAAAAAAAAAAAgD8d+Yc+J3yavQAAQEFINY4+NtGLvAAAQEFZPwI+wY+9uwAAQEEAAAAAAAAAAAAAAACAPx35hz4nfJq9AABAQVk/Aj7Bj727AABAQaMK/D2ictG8AABAQQAAAAAAAAAAAIAAAIA/c/SCPvLxyj0AAEBBjHdkPvqMGD4AAEBBQpHePUnTTj0AAEBBAAAAAAAAAAAAgAAAgD9z9II+8vHKPQAAQEFCkd49SdNOPQAAQEHrPPU9FpMJPQAAQEEAAOIyHKl7FP2qAACAP0g1jj420Yu8AABAQRx/jD636i09AABAQVAWAT4Oy2s8AABAQQAA8TEVqdfb+KoAAIA/SDWOPjbRi7wAAEBBUBYBPg7LazwAAEBBWT8CPsGPvbsAAEBBAAD2M1yqyqDkKgAAgD8cf4w+t+otPQAAQEFz9II+8vHKPQAAQEHrPPU9FpMJPQAAQEEAAIu1W6r3UuAqAACAPxx/jD636i09AABAQes89T0Wkwk9AABAQVAWAT4Oy2s8AABAQQAA</script>
 <!-- BBL hotend mesh from resources/profiles/BBL/bbl-3dp-hotend.stl. https://github.com/OrcaSlicer/OrcaSlicer/blob/v2.5.1/resources/profiles/BBL/bbl-3dp-hotend.stl
                     GNU AFFERO GENERAL PUBLIC LICENSE
@@ -728,22 +728,26 @@ For more information on this, and how to apply and follow the GNU AGPL, see
 -->
 <script id="thermalCore">
 // Contact is measured on the nominal toolpath, in mm. Times refer to the original print clock.
-// Each contact joins two points on real extrusion segments. Keep the nearest joint on
-// each side when the later segment is laid. Future roads cannot displace an earlier joint.
-function lateralContacts(paths){
-  const roads=[],bins=new Map(),chosen=[],scores=[],stamps=[];
+// Join deposited roads in this slice when their bead footprints touch.
+function connectedRoads(paths){
+  const roads=[],bins=new Map(),stamps=[],parent=paths.map((_,i)=>i);
+  function root(i){while(parent[i]!==i){parent[i]=parent[parent[i]];i=parent[i]}return i}
+  function distance2(x,y,line){
+    const t=Math.max(0,Math.min(1,(x*line.dx+y*line.dy)/line.length2));
+    const dx=x-t*line.dx,dy=y-t*line.dy;
+    return dx*dx+dy*dy;
+  }
   const cell=Math.max(1.2,2*paths.reduce((w,p)=>Math.max(w,p.width),0));
   let count=0;
   for(const [road,p] of paths.entries()){
     p.nodeBase=count;count+=p.times.length;
-    let distance=0;
     for(let j=1;j<p.times.length;j++){
       const x=p.xy[2*j-2],y=p.xy[2*j-1],dx=p.xy[2*j]-x,dy=p.xy[2*j+1]-y;
-      const len=Math.hypot(dx,dy);
-      if(!len)continue;
+      const length2=dx*dx+dy*dy;
+      if(!length2)continue;
       const id=roads.length,pad=p.width/2+.0005;
-      const a={x,y,dx,dy,len,width:p.width,road,node:p.nodeBase+j-1,arc:distance+len/2};
-      distance+=len;roads.push(a);stamps.push(-1);
+      const a={x,y,dx,dy,length2,width:p.width,road};
+      roads.push(a);stamps.push(-1);
       for(let iy=Math.floor((Math.min(y,y+dy)-pad)/cell);iy<=Math.floor((Math.max(y,y+dy)+pad)/cell);iy++)
         for(let ix=Math.floor((Math.min(x,x+dx)-pad)/cell);ix<=Math.floor((Math.max(x,x+dx)+pad)/cell);ix++){
           const key=iy*1048576+ix;
@@ -751,38 +755,21 @@ function lateralContacts(paths){
           for(const other of bin){
             if(stamps[other]===id)continue;stamps[other]=id;
             const b=roads[other],r=(p.width+b.width)/2+.001;
-            if(b.road===road&&Math.abs(b.arc-a.arc)<=r+(a.len+b.len)/2)continue;
+            const left=root(road),right=root(b.road);
+            if(left===right)continue;
             const px=b.x-x,py=b.y-y,det=dx*b.dy-dy*b.dx;
-            let u,v,found=false;
-            if(Math.abs(det)>1e-8*len*b.len){
-              u=(px*b.dy-py*b.dx)/det;v=(px*dy-py*dx)/det;
-              found=u>=0&&u<=1&&v>=0&&v<=1;
-            }
-            if(!found){
-              // Midpoint of the projected overlap also handles parallel roads and end contacts.
-              const t0=(px*dx+py*dy)/(len*len),t1=t0+(b.dx*dx+b.dy*dy)/(len*len);
-              const lo=Math.max(0,Math.min(t0,t1)),hi=Math.min(1,Math.max(t0,t1));
-              u=Math.min(1,Math.max(0,(lo+hi)/2));
-              v=Math.min(1,Math.max(0,((dx*u-px)*b.dx+(dy*u-py)*b.dy)/(b.len*b.len)));
-              u=Math.min(1,Math.max(0,((px+b.dx*v)*dx+(py+b.dy*v)*dy)/(len*len)));
-            }
-            const ex=px+b.dx*v-dx*u,ey=py+b.dy*v-dy*u,sq=ex*ex+ey*ey;
-            if(sq>=r*r)continue;
-            const side=2*id+(dx*ey-dy*ex>=0?1:0);
-            const weight=Math.sqrt(1-sq/(r*r))*Math.min(a.len,b.len);
-            const score=weight/(1+Math.abs(u-.5)+Math.abs(v-.5));
-            if(score>(scores[side]||0)){
-              chosen[side]={a:a.node,b:b.node,u,v,weight};scores[side]=score;
-            }
+            const u=px*b.dy-py*b.dx,v=px*dy-py*dx;
+            const crosses=det>0?u>=0&&u<=det&&v>=0&&v<=det:
+              det<0&&u<=0&&u>=det&&v<=0&&v>=det;
+            if(!crosses&&distance2(px,py,a)>=r*r&&distance2(px+b.dx,py+b.dy,a)>=r*r&&
+               distance2(-px,-py,b)>=r*r&&distance2(dx-px,dy-py,b)>=r*r)continue;
+            parent[right]=left;
           }
           bin.push(id);
         }
     }
   }
-  const unique=chosen.filter(Boolean);
-  const links=new Float32Array(unique.length*5);let k=0;
-  for(const e of unique){links[k++]=e.a;links[k++]=e.b;links[k++]=e.u;links[k++]=e.v;links[k++]=e.weight}
-  return links;
+  return parent.map((_,i)=>root(i));
 }
 
 // At a fixed transverse coordinate, take the first exterior wall seen from the chosen bed edge.
@@ -856,10 +843,10 @@ function buildThermalContacts(d){
       if(p.contact)for(let j=0;j<p.times.length;j++){p.contact[4*j]=-1;p.contact[4*j+1]=1}
     }else{const under=planeAt(bottom);if(under&&under!==plane)under.bottom.push(p)}
   }
-  const roadIsland=new Map(),lowerContacts=new Map();
-  d.islands=d.layers.map(paths=>{
-    const geometry=islandGeometry(paths,lateralContacts(paths));
-    paths.forEach((road,i)=>roadIsland.set(road,geometry[i]));
+  const roadIsland=new Map(),supportsBelow=new Map();
+  d.islands=d.layers.map((paths,i)=>{
+    const geometry=islandGeometry(paths,connectedRoads(paths));
+    paths.forEach((p,j)=>{geometry[j].layer=i;roadIsland.set(p,geometry[j])});
     return geometry;
   });
   // Each bin lists nearby segments. Candidate distances and arrival times are evaluated on the segment itself.
@@ -901,20 +888,25 @@ function buildThermalContacts(d){
         }
       }
       if(!above&&matched&&!support){
-        const island=roadIsland.get(p);
-        if(!lowerContacts.has(island))lowerContacts.set(island,new Set());
-        lowerContacts.get(island).add(roadIsland.get(matched));
+        const g=roadIsland.get(p);
+        let below=supportsBelow.get(g);
+        if(!below){below=new Map();supportsBelow.set(g,below)}
+        const lower=roadIsland.get(matched),xy=p.xy,k=2*j;
+        const before=j?Math.hypot(x-xy[k-2],y-xy[k-1]):0;
+        const after=k+2<xy.length?Math.hypot(x-xy[k+2],y-xy[k+3]):0;
+        const area=best*p.width*(before+after)*.5;
+        if(area>0)below.set(lower,(below.get(lower)||0)+area);
       }
       const k=4*j+(above?2:0);p.contact[k]=at;p.contact[k+1]=support?-best:best;
     }
   }
   for(const plane of sorted){match(plane.top,plane.bottom,false);match(plane.bottom,plane.top,true)}
+  d.attachments=attachmentHistory(d.islands,supportsBelow);
   let xmin=Infinity,ymin=Infinity,xmax=-Infinity,ymax=-Infinity;
   for(const paths of d.layers)for(const p of paths)for(let j=0;j<p.xy.length;j+=2){
     xmin=Math.min(xmin,p.xy[j]);xmax=Math.max(xmax,p.xy[j]);
     ymin=Math.min(ymin,p.xy[j+1]);ymax=Math.max(ymax,p.xy[j+1]);
   }
-  setLayerCenters(d.islands,lowerContacts);
   d.probeSets=probeNormals.map(()=>[]);
   for(const paths of d.layers){
     wallProbes(paths,(xmin+xmax)/2,(ymin+ymax)/2).forEach((probe,side)=>d.probeSets[side].push(probe));
@@ -932,28 +924,43 @@ function pairTemperatures(lower,upper,lowerShare,contact,age,p){
 function layerHeatHistory(model,map,p){
   const hot=p.hot-p.air;
   let remaining=0;
-  return model.layers.map((paths,i)=>{
+  const frozen=new Map();
+  function referenceStrain(i){
+    if(!frozen.has(i))frozen.set(i,coolingCurve(history[i],p,true)*(i===0?1-p.bed*.01:1));
+    return frozen.get(i);
+  }
+  const placements=[[0,0,0]];
+  const history=model.layers.map((paths,i)=>{
     const span=map(model.starts[i]+model.duration[i])-map(model.starts[i]);
     const height=model.thickness[i],below=model.thickness[Math.max(0,i-1)];
     const lowerShare=below/(below+height),above=model.thickness[i+1]||height;
-    const layer={span,remaining,lowerShare,ownShare:height/(height+above),
+    const layer={span,remaining,lowerShare,placements,ownShare:height/(height+above),
       hasLower:i>0,hasUpper:i+1<model.layers.length};
     remaining=pairTemperatures(remaining,hot,lowerShare,i>0?1:0,span,p)[1];
     return layer;
   });
+  // Each reference is an affine XY displacement field [strain, offsetX, offsetY].
+  // Sample it at the child's centre to carry a rigid translation, never a strain
+  // from a distant sibling. Joined contact areas contribute in proportion to area.
+  const free=p.alpha*1e-6*(p.tg-p.air);
+  for(const contacts of model.attachments){
+    let scale=0,x=0,y=0;
+    for(const c of contacts){
+      const [prior,px,py]=placements[c.source],strain=free*referenceStrain(c.layer);
+      scale+=c.weight*strain;
+      x+=c.weight*(px+(prior-strain)*c.x);y+=c.weight*(py+(prior-strain)*c.y);
+    }
+    placements.push([scale,x,y]);
+  }
+  return history;
 }
 
 // Fixed geometry of each connected island. Fill pull is a small, bounded
 // resultant toward its infill centre; walls, top skin and support are distinct.
-function islandGeometry(paths,links){
-  const n=paths.at(-1).nodeBase+paths.at(-1).times.length;
-  const owner=new Uint32Array(n),parent=paths.map((_,i)=>i);
-  function root(i){while(parent[i]!==i){parent[i]=parent[parent[i]];i=parent[i]}return i}
-  for(const [i,p] of paths.entries())owner.fill(i,p.nodeBase,p.nodeBase+p.times.length);
-  for(let k=0;k<links.length;k+=5)parent[root(owner[links[k]])]=root(owner[links[k+1]]);
+function islandGeometry(paths,components){
   const groups=new Map();
   const geometry=paths.map((p,i)=>{
-    const id=root(i);
+    const id=components[i];
     if(!groups.has(id))groups.set(id,{rank:-1,fill:0,volume:0,fx:0,fy:0,fillStart:Infinity,fillEnd:-Infinity});
     const g=groups.get(id),isFill=/^(?:sparse infill|internal (?:solid )?infill|solid infill|infill|fill)$/i.test(p.role||'');
     // Prefer exterior walls, then other walls, then all roads for untyped imports.
@@ -989,37 +996,32 @@ function islandGeometry(paths,links){
   }
   return geometry;
 }
-// Accumulate real connections through already printed material. A hole in one
-// slice need not split a body that is still joined below. Freeze each slice's
-// outline centre before adding later slices, so future bridges cannot act early.
-function setLayerCenters(layers,lowerContacts){
-  const parent=new Map();
-  function root(g){
-    let r=g;
-    while(parent.has(r))r=parent.get(r);
-    while(g!==r){const next=parent.get(g);parent.set(g,r);g=next}
-    return r;
-  }
-  for(const geometry of layers){
-    const islands=new Set(geometry),bounds=new Map();
-    for(const g of islands){
-      for(const below of lowerContacts.get(g)||[]){
-        const a=root(g),b=root(below);if(a!==b)parent.set(a,b);
-      }
+// Only splits and joins need a new attachment record. Subsequent slices reuse
+// the reference established at the junction, independent of their cooling rate.
+function attachmentHistory(layers,supportsBelow){
+  const events=[];
+  for(const roads of layers){
+    const islands=new Set(roads),children=new Map();
+    for(const g of islands)for(const lower of supportsBelow.get(g)?.keys()||[]){
+      children.set(lower,(children.get(lower)||0)+1);
     }
     for(const g of islands){
-      const id=root(g),box=bounds.get(id);
-      if(!box||g.rank>box.rank){
-        bounds.set(id,{rank:g.rank,xlo:g.xlo,xhi:g.xhi,ylo:g.ylo,yhi:g.yhi});
-      }else if(g.rank===box.rank){
-        box.xlo=Math.min(box.xlo,g.xlo);box.xhi=Math.max(box.xhi,g.xhi);
-        box.ylo=Math.min(box.ylo,g.ylo);box.yhi=Math.max(box.yhi,g.yhi);
+      const below=supportsBelow.get(g);
+      g.attachment=0;
+      if(!below?.size)continue;
+      const first=below.keys().next().value;
+      if(below.size===1&&children.get(first)===1){
+        g.attachment=first.attachment;continue;
       }
-    }
-    for(const g of islands){
-      const b=bounds.get(root(g));g.x=(b.xlo+b.xhi)*.5;g.y=(b.ylo+b.yhi)*.5;
+      const area=Array.from(below.values()).reduce((sum,a)=>sum+a,0);
+      const contacts=[];
+      for(const [lower,a] of below){
+        contacts.push({source:lower.attachment,layer:lower.layer,x:lower.x,y:lower.y,weight:a/area});
+      }
+      g.attachment=events.push(contacts);
     }
   }
+  return events;
 }
 function mappedSample(p,j,map,params,out,k=0){
   const c=p.contact,at=4*j,birth=map(p.origin+p.times[j]);
@@ -1031,7 +1033,7 @@ function mappedSample(p,j,map,params,out,k=0){
 }
 // One representative cooling history for the entire layer. Local road contact
 // must not select or retime this curve, even during playback.
-function coolingCurve(layer,p){
+function coolingCurve(layer,p,finalOnly=false){
   const hot=p.hot-p.air,threshold=p.tg-p.air;
   const lowerContact=Number(layer.hasLower),upperContact=Number(layer.hasUpper);
   const jointMobility=1-p.beta/100;
@@ -1053,9 +1055,11 @@ function coolingCurve(layer,p){
     for(let j=0;j<=last;j++)values[j]=fn(end*j/last);
     return {end,rate:last/end,values};
   }
+  const final=upperContact?pre+phase(tail,true):phase(tail,false);
+  if(finalOnly)return final;
   return {before:table(upperContact?Math.min(span,tail):tail,t=>phase(t,false)),
     after:upperContact?table(tail,t=>pre+phase(t,true)):null,span,
-    final:upperContact?pre+phase(tail,true):phase(tail,false)};
+    final};
 }
 function curveAt(table,age){
   const k=Math.min(table.values.length-1,Math.max(0,age*table.rate)),i=Math.floor(k);
@@ -1065,7 +1069,7 @@ function curveAt(table,age){
 const localTimingWeight=.02, maxInfillPull=.005;
 function prepareLayerPreview(paths,geometry,layer,p,map){
   const n=paths.at(-1).nodeBase+paths.at(-1).times.length;
-  const displacement=new Float32Array(2*n),localFinal=new Float32Array(n);
+  const displacement=new Float32Array(2*n),localFinal=new Float32Array(n),localShrink=new Float32Array(n);
   const curve=coolingCurve(layer,p),fillWindows=[];
   const hotRatio=(p.hot-p.air)/(p.tg-p.air);
   const airQ=age=>Math.max(0,1-hotRatio*Math.exp(-age/p.tau));
@@ -1073,6 +1077,7 @@ function prepareLayerPreview(paths,geometry,layer,p,map){
   let first=Infinity,last=0,xlo=Infinity,xhi=-Infinity,ylo=Infinity,yhi=-Infinity;
   for(const [i,road] of paths.entries()){
     const g=geometry[i];fillWindows.push(g.fill?[map(g.fillStart),map(g.fillEnd)]:[Infinity,Infinity]);
+    road.localShrink=localShrink.subarray(road.nodeBase,road.nodeBase+road.times.length);
     road.displacement=displacement.subarray(2*road.nodeBase,2*(road.nodeBase+road.times.length));
     for(let j=0;j<road.times.length;j++){
       const m=5*j,k=road.nodeBase+j,down=road.mapped[m+4],gap=road.mapped[m+1];
@@ -1085,20 +1090,25 @@ function prepareLayerPreview(paths,geometry,layer,p,map){
       ylo=Math.min(ylo,road.xy[2*j+1]);yhi=Math.max(yhi,road.xy[2*j+1]);
     }
   }
-  return {displacement,localFinal,curve,geometry,fillWindows,freeScale,airQ,
+  const registration=geometry.map(g=>{
+    if(!g.attachment)return null;
+    const [strain,x,y]=layer.placements[g.attachment];
+    return [x+strain*g.x,y+strain*g.y];
+  });
+  return {displacement,localShrink,localFinal,curve,geometry,fillWindows,registration,freeScale,airQ,
     birth:[first],settled:last+12*Math.max(p.tau,p.weldTime),radius:Math.hypot(xhi-xlo,yhi-ylo),time:NaN,stamp:0};
 }
 function solveRoadMechanics(paths,net,t,p,pull=true){
   if(net.time===t&&net.includePull===pull)return;
   net.time=t;net.includePull=pull;net.stamp++;
-  if(t<net.birth[0]){net.displacement.fill(0);return}
+  if(t<net.birth[0]){net.displacement.fill(0);net.localShrink.fill(0);return}
   const done=t>=net.settled;
   for(const [i,road] of paths.entries()){
-    const g=net.geometry[i],[start,end]=net.fillWindows[i];
+    const g=net.geometry[i],shift=net.registration[i],[start,end]=net.fillWindows[i];
     const fill=pull&&g.fill?(done?1:Math.max(0,Math.min(1,(t-start)/Math.max(.001,end-start))))*maxInfillPull*g.fillFraction:0;
     for(let j=0;j<road.times.length;j++){
       const k=road.nodeBase+j,m=5*j,v=road.displacement,h=2*j,age=t-road.mapped[m];
-      if(age<=0){v[h]=v[h+1]=0;continue}
+      if(age<=0){v[h]=v[h+1]=net.localShrink[k]=0;continue}
       const curve=net.curve,gap=road.mapped[m+1];
       let bulk=curve.final,local=net.localFinal[k];
       if(!done){
@@ -1114,6 +1124,11 @@ function solveRoadMechanics(paths,net,t,p,pull=true){
       const fx=x-g.fx,fy=y-g.fy;
       const gain=fill?fill*Math.min(1,Math.hypot(dx,dy)/(Math.hypot(fx,fy)||1)):0;
       v[h]=strain*(dx+gain*fx);v[h+1]=strain*(dy+gain*fy);
+      net.localShrink[k]=Math.hypot(v[h],v[h+1]);
+      if(shift){
+        const cooled=done?1:Math.max(0,Math.min(1,bulk/(curve.final||1)));
+        v[h]+=cooled*shift[0];v[h+1]+=cooled*shift[1];
+      }
     }
   }
 }
@@ -5858,11 +5873,11 @@ function makeViewport(canvas){
 
   function thermalMaterial(material){
     // Constant attributes keep toolpath-only models renderable before any thermal data is allocated.
-    material.defaultAttributeValues={...material.defaultAttributeValues,wallDisplacement:[0,0,0,0],previousDisplacement:[0,0,0,0]};
+    material.defaultAttributeValues={...material.defaultAttributeValues,wallDisplacement:[0,0,0,0],previousDisplacement:[0,0,0,0],localShrink:[0,0],previousShrink:[0,0]};
     material.onBeforeCompile=shader=>{
       Object.assign(shader.uniforms,thermalUniforms,{uTintLow:{value:palette[0]},uTintCool:{value:palette[1]},uTintWarm:{value:palette[2]},uTintHigh:{value:palette[3]}});
       shader.vertexShader='#ifdef MULTIPLE_SPOOLS\nattribute float spoolRGB;\n#endif\nuniform vec3 uTintLow,uTintCool,uTintWarm,uTintHigh;\nattribute vec4 roadEnds,roadPerps,wallDisplacement; attribute vec2 beadSize; varying vec3 localTint;\n'+
-        'attribute vec4 previousDisplacement; uniform float uGain,uColorMin,uColorSpan,uField,uComparison;\n'+shader.vertexShader;
+        'attribute vec4 previousDisplacement; attribute vec2 localShrink,previousShrink; uniform float uGain,uColorMin,uColorSpan,uField,uComparison;\n'+shader.vertexShader;
       shader.vertexShader=shader.vertexShader.replace('#include <beginnormal_vertex>',[
         '#include <beginnormal_vertex>',
         'vec2 perp=mix(roadPerps.xy,roadPerps.zw,position.z);',
@@ -5875,7 +5890,8 @@ function makeViewport(canvas){
         'transformed.z=(position.y-1.0)*0.5*beadSize.y;',
         'vec4 offsets=mix(previousDisplacement,wallDisplacement,uComparison);',
         'vec2 offset=mix(offsets.xy,offsets.zw,position.z);',
-        'float v=clamp((length(offset)*1000.0-uColorMin)/uColorSpan,0.0,1.0)*3.0;',
+        'vec2 shrink=mix(previousShrink,localShrink,uComparison);',
+        'float v=clamp((mix(shrink.x,shrink.y,position.z)*1000.0-uColorMin)/uColorSpan,0.0,1.0)*3.0;',
         'vec3 tint=v<1.0?mix(uTintLow,uTintCool,v):v<2.0?mix(uTintCool,uTintWarm,v-1.0):mix(uTintWarm,uTintHigh,v-2.0);',
         'vec3 film=vec3(1.0);',
         '#ifdef MULTIPLE_SPOOLS',
@@ -5893,25 +5909,27 @@ function makeViewport(canvas){
     const net=data.mechanics[layer],state=mesh.userData;
     if(comparison&&state.comparisonId!==comparison.id){
       writeOffsets(mesh,paths,'previousDisplacement',comparison.from[layer]);
+      writeOffsets(mesh,paths,'previousShrink',comparison.fromLocal[layer],1);
       state.comparisonId=comparison.id;
     }
     if(state.revision===view.revision&&state.mechanicsStamp===net.stamp)return;
     writeOffsets(mesh,paths,'wallDisplacement',net.displacement);
+    writeOffsets(mesh,paths,'localShrink',net.localShrink,1);
     state.revision=view.revision;state.mechanicsStamp=net.stamp;
   }
-  function writeOffsets(mesh,paths,name,nodes){
+  function writeOffsets(mesh,paths,name,nodes,components=2){
     const g=mesh.geometry;
     let attr=g.getAttribute(name);
     if(!attr){
-      attr=new THREE.InstancedBufferAttribute(new Float32Array(g.getAttribute('roadEnds').count*4),4);
+      attr=new THREE.InstancedBufferAttribute(new Float32Array(g.getAttribute('roadEnds').count*2*components),2*components);
       attr.setUsage(renderer.getContext().DYNAMIC_DRAW);
       g.setAttribute(name,attr);
     }
     let k=0;
     for(const p of paths){
-      const v=nodes.subarray(2*p.nodeBase,2*(p.nodeBase+p.times.length));
-      for(let j=2;j<v.length;j+=2){
-        attr.array[k++]=v[j-2];attr.array[k++]=v[j-1];attr.array[k++]=v[j];attr.array[k++]=v[j+1];
+      const start=components*p.nodeBase,end=start+components*(p.times.length-1);
+      for(let j=start;j<end;j+=components){
+        for(let c=0;c<2*components;c++)attr.array[k++]=nodes[j+c];
       }
     }
     attr.needsUpdate=true;
@@ -6037,7 +6055,9 @@ function makeViewport(canvas){
             const flatInk=view.local&&i<view.lo?ink.clone().multiplyScalar(.5):ink;
             const localPoint=j=>{
               const x=p.xy[2*j],y=p.xy[2*j+1],ux=nodeOffset(i,p,j,0),uy=nodeOffset(i,p,j,1);
-              return [x-ux*displayedGain,y-uy*displayedGain,Math.hypot(ux,uy)*1000];
+              const k=p.nodeBase+j,shrink=fieldHere?data.mechanics[i].localShrink[k]:0;
+              const old=fieldHere&&comparison?comparison.fromLocal[i][k]:shrink;
+              return [x-ux*displayedGain,y-uy*displayedGain,1000*(old+(shrink-old)*(comparison?.mix??1))];
             };
             let a=localPoint(0);
             for(let j=1;j<p.times.length&&left>0;j++,left--){
@@ -6140,7 +6160,8 @@ function makeViewport(canvas){
       const last=comparison,mix=last?.mix??1;
       const rawAlpha=last?last.rawAlpha+((profileState.raw?1:0)-last.rawAlpha)*mix:(profileState.raw?1:0);
       const from=snapshotOffsets(data.mechanics,last);
-      comparison={id:++comparisonId,from,mix:0,start:null,rawAlpha};
+      const fromLocal=snapshotOffsets(data.mechanics,last,'localShrink','fromLocal');
+      comparison={id:++comparisonId,from,fromLocal,mix:0,start:null,rawAlpha};
     },
     show(st){
     if(!view||$('amplify').disabled||reducedMotion.matches){
@@ -6155,11 +6176,11 @@ const $=id=>document.getElementById(id);
 const fmt=(n,p=1)=>Number(n).toFixed(p);
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 const upper=(arr,v)=>{let l=0,r=arr.length;while(l<r){const m=(l+r)>>>1;if(arr[m]<=v)l=m+1;else r=m}return l};
-function snapshotOffsets(mechanics,transition){
+function snapshotOffsets(mechanics,transition,key='displacement',previous='from'){
   return mechanics.map((net,i)=>{
-    const buffer=net.displacement.slice();
+    const buffer=net[key].slice();
     if(transition){
-      const start=transition.from[i];
+      const start=transition[previous][i];
       for(let k=0;k<buffer.length;k++)buffer[k]=start[k]+(buffer[k]-start[k])*transition.mix;
     }
     return buffer;
@@ -6454,9 +6475,7 @@ function originalColorRange(model,p){
     if(!paths.length)continue;
     const net=prepareLayerPreview(paths,islands,heat[i],p,identity);
     solveRoadMechanics(paths,net,Infinity,p,true);
-    for(let j=0;j<net.displacement.length;j+=2){
-      samples.push(1000*Math.hypot(net.displacement[j],net.displacement[j+1]));
-    }
+    for(const local of net.localShrink)samples.push(1000*local);
   }
   samples.sort((a,b)=>a-b);
   const quantile=q=>samples[Math.round((samples.length-1)*q)]||0;

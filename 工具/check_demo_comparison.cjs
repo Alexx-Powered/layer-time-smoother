@@ -59,6 +59,9 @@ assert.deepEqual([...reverse[0]],[2,6]);
 assert.deepEqual([...ctx.snapshotOffsets(start,{from:reverse,mix:0})[0]],[2,6]);
 assert.deepEqual([...ctx.snapshotOffsets(start,{from:reverse,mix:1})[0]],[1,4]);
 assert.deepEqual([...end[0].displacement],[5,12]);
+const localSnapshot=ctx.snapshotOffsets([{localShrink:Float32Array.of(2,4)}],
+  {fromLocal:[Float32Array.of(0,2)],mix:.5},'localShrink','fromLocal');
+assert.deepEqual([...localSnapshot[0]],[1,3]);
 console.log('Per-layer clocks, nozzle coordinates and interrupted geometry transitions verified.');
 
 // A dense layer used to switch to pixel-wide lines. Build the production bead
@@ -97,4 +100,7 @@ g.instanceCount=3;
 const offsets=new Float32Array(2*90004);offsets.set([1,2,3,4,5,6],2*90001);
 ctx.writeOffsets({geometry:g},paths,'wallDisplacement',offsets);
 assert.deepEqual([...g.getAttribute('wallDisplacement').array.slice(-8)],[1,2,3,4,3,4,5,6]);
+const shrink=new Float32Array(90004);shrink.set([2,4,3],90001);
+ctx.writeOffsets({geometry:g},paths,'localShrink',shrink,1);
+assert.deepEqual([...g.getAttribute('localShrink').array.slice(-4)],[2,4,4,3]);
 console.log('Dense bead dimensions, corner joins, travel gaps and thermal endpoints verified.');

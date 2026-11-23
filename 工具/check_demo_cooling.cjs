@@ -51,8 +51,46 @@ function checkBridge(){
   }
   const m=plate(moves.join('\n'),heights.map(()=>18),heights);
   const centers=m.islands.map(layer=>layer.map(g=>g.x));
-  for(const index of [0,1])assert(Math.max(...centers[index])-Math.min(...centers[index])>10);
-  for(const index of [2,3])assert(Math.max(...centers[index])-Math.min(...centers[index])<.01);
+  for(const index of [0,1,3])assert(Math.max(...centers[index])-Math.min(...centers[index])>10);
+  assert(Math.max(...centers[2])-Math.min(...centers[2])<.01);
+  profile(m);
+  for(const [i,road] of m.layers[3].entries()){
+    const g=m.islands[3][i];
+    let left=Infinity,right=-Infinity;
+    for(let j=0;j<road.times.length;j++){
+      const dx=road.xy[2*j]-g.x;
+      if(dx<-1)left=Math.min(left,road.displacement[2*j]);
+      if(dx>1)right=Math.max(right,road.displacement[2*j]);
+      assert(road.localShrink[j]<.012,'Colour must exclude the rigid displacement of the bridge');
+    }
+    assert(right>left,'Opposite pillar walls must approach one another even when the base translates');
+    assert(road.contact.some((v,k)=>k%4===1&&v>.9),'The pillar still touches the layer below');
+  }
+}
+
+function checkDeckPost(){
+  function build(bow){
+    const moves=['G90','M83'],z=[.2,.4,.6,.8];
+    function wall(x,y,w,h){
+      moves.push('G0 X'+x+' Y'+y+' F3000','G1 X'+(x+w)+' E1 F1200','G1 Y'+(y+h)+' E1',
+        'G1 X'+x+' E1','G1 Y'+y+' E1');
+    }
+    for(const [i,height] of z.entries()){
+      moves.push('; CHANGE_LAYER','; Z_HEIGHT: '+height,'G1 Z'+height+' F600','; FEATURE: Outer wall');
+      wall(0,0,3,3);wall(bow,0,8,6);
+      if(i===0)moves.push('G0 X1 Y0','G1 X'+(bow+1)+' E1 F600');
+    }
+    const m=plate(moves.join('\n'),z.map(()=>18),z);
+    profile(m);
+    const post=m.layers.at(-1)[0];
+    const offsets=Array.from(post.localShrink,v=>v*1000);
+    assert(Math.max(...offsets.map(Math.abs))<10,'A 3 mm post cannot acquire a hull-sized displacement');
+    assert(Math.abs(post.displacement[0])>post.localShrink[0],'Geometry carries the attachment translation');
+    return offsets;
+  }
+  const near=build(20),far=build(60);
+  assert.equal(near.length,far.length);
+  assert(near.every((u,i)=>Math.abs(u-far[i])<.1),'Moving the bow must not drag a separate deck post');
 }
 
 function checkEqualLayerClock(){
@@ -71,7 +109,7 @@ function checkEqualLayerClock(){
 }
 
 async function run(){
-  checkBridge();checkEqualLayerClock();
+  checkBridge();checkDeckPost();checkEqualLayerClock();
   require(path.join(demo,'smooth-example.js'));require(path.join(demo,'voron-gcode.js'));
   const code=Buffer.from(await voronGcodeBytes()).toString('utf8');
   const {before,heights}=layerSmoothingExample.result;
