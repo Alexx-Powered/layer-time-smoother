@@ -29,6 +29,18 @@ function model(code,seconds){
   return ctx.prepare(ctx.parseGcode(code,'test',null,{},60,{heights:z,seconds}));
 }
 const before=model(code,[12,28,20]),after=model(code.replaceAll('E1 F900','E1 F450'),[11,18,25]);
+// A legend must keep the same units while a different point in time is shown.
+vm.runInContext(section('function originalColorRange(', 'function frame(){')+
+  'const legendNodes={};function $(id){return legendNodes[id]??={}}',ctx);
+const petg={hot:255,air:25,tg:79.4,alpha:78,tau:6.5,c:35,beta:75,bed:65,
+  reheat:18,support:40,weldTime:4};
+const range=ctx.shrinkColorRange(before,petg);
+assert(range.min>=0&&range.max>range.min);
+assert.strictEqual(ctx.shrinkColorRange(before,petg),range);
+assert.equal(before.layers[0][0].displacement,undefined);
+const zeroRange=ctx.shrinkColorRange(before,{...petg,alpha:0});
+assert.equal(zeroRange.min,0);assert(zeroRange.max>=.5);
+assert.deepEqual(ctx.shrinkColorRange(before,petg),range);
 assert.equal(after.layerTiming,true);assert.deepEqual(Array.from(after.duration),[11,18,25]);
 assert.equal(ctx.sameRoadGeometry(before,after),true);
 const source=ctx.nozzleTrack(before),target=ctx.nozzleTrack(after);
