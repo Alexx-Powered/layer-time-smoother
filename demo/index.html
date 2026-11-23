@@ -6053,7 +6053,7 @@ function makeViewport(canvas){
   const homeYaw=-1,homePitch=.37;
   const reducedMotion=matchMedia('(prefers-reduced-motion: reduce)');
   let zoom=1,dx=0,dy=0,yaw=homeYaw,pitch=homePitch;
-  let displayedGain=1,gainTween=null,cameraTween=null,flatLayers=[];
+  let displayedGain=1,gainTween=null,cameraTween=null,zoomMotion=null,flatLayers=[];
   try{
     const gl=canvas.getContext('webgl2',{antialias:true,alpha:true});if(!gl)throw Error();
     renderer=new THREE.WebGLRenderer({canvas,context:gl,antialias:true,alpha:true});
@@ -6242,10 +6242,12 @@ function makeViewport(canvas){
     flatLayers=[];
   }
   function schedule(){if(!scheduled){scheduled=true;requestAnimationFrame(render)}}
+  function stopCameraMotion(){cameraTween=null;zoomMotion=null}
   function applyHome(){
-    cameraTween=null;zoom=1;dx=0;dy=0;yaw=homeYaw;pitch=homePitch;
+    stopCameraMotion();zoom=1;dx=0;dy=0;yaw=homeYaw;pitch=homePitch;
   }
   function reset(){
+    zoomMotion=null;
     // Use the shortest turn even after the user has orbited several revolutions.
     const yawOffset=Math.atan2(Math.sin(yaw-homeYaw),Math.cos(yaw-homeYaw));
     if(reducedMotion.matches||(!dx&&!dy&&zoom===1&&Math.abs(yawOffset)<1e-8&&pitch===homePitch))applyHome();
@@ -6274,7 +6276,15 @@ function makeViewport(canvas){
       dx=c.dx*remaining;dy=c.dy*remaining;zoom=Math.exp(c.logZoom*remaining);
       if(t===1)applyHome();
     }
-    if(gainTween||cameraTween||comparison)schedule();
+    if(zoomMotion){
+      // Dampen the log scale so a wheel burst stays continuous at any frame rate.
+      const elapsed=Math.max(0,now-zoomMotion.frame);
+      const gap=Math.log(zoom/zoomMotion.target)*Math.exp(-elapsed/48);
+      zoomMotion.frame+=elapsed;
+      if(reducedMotion.matches||Math.abs(gap)<.0004){zoom=zoomMotion.target;zoomMotion=null}
+      else zoom=zoomMotion.target*Math.exp(gap);
+    }
+    if(gainTween||cameraTween||zoomMotion||comparison)schedule();
   }
   function size(w,h){return Math.max(model.size[2]*1.25+Math.hypot(model.size[0],model.size[1])*.58,
     Math.hypot(model.size[0],model.size[1])*1.18*h/w,model.extent*.65)/zoom}
@@ -6388,11 +6398,20 @@ function makeViewport(canvas){
   }
   const pointers=new Map();
   function orbit(h,v){yaw+=h;pitch=Math.max(-1.42,Math.min(1.42,pitch+v))}
-  function magnify(f){cameraTween=null;zoom=Math.max(.2,Math.min(18,zoom*f));schedule()}
+  function magnify(factor){
+    if(factor===1)return;
+    cameraTween=null;
+    // Compose every input onto one target, including reciprocal clicks and pinch deltas.
+    const target=Math.max(.2,Math.min(18,(zoomMotion?.target??zoom)*factor));
+    if(reducedMotion.matches||target===zoom){zoom=target;zoomMotion=null}
+    else if(zoomMotion)zoomMotion.target=target;
+    else zoomMotion={target,frame:performance.now()};
+    schedule();
+  }
   canvas.addEventListener('contextmenu',e=>e.preventDefault());
   // Reserve the middle button for the viewport, including on browsers with middle-click autoscroll.
   for(const event of ['mousedown','auxclick'])canvas.addEventListener(event,e=>{if(e.button===1)e.preventDefault()});
-  canvas.addEventListener('pointerdown',e=>{if(e.button>2)return;cameraTween=null;e.preventDefault();canvas.focus({preventScroll:true});
+  canvas.addEventListener('pointerdown',e=>{if(e.button>2)return;stopCameraMotion();e.preventDefault();canvas.focus({preventScroll:true});
     pointers.set(e.pointerId,[e.clientX,e.clientY]);canvas.setPointerCapture(e.pointerId)});
   canvas.addEventListener('pointermove',e=>{
     const old=pointers.get(e.pointerId);if(!old)return;
@@ -6406,7 +6425,7 @@ function makeViewport(canvas){
   for(const event of ['pointerup','pointercancel','lostpointercapture'])canvas.addEventListener(event,e=>pointers.delete(e.pointerId));
   canvas.addEventListener('wheel',e=>{e.preventDefault();magnify(Math.exp(-Math.max(-120,Math.min(120,e.deltaY))*.0015))},{passive:false});
   canvas.addEventListener('keydown',e=>{const dirs={ArrowLeft:[-20,0],ArrowRight:[20,0],ArrowUp:[0,-20],ArrowDown:[0,20]};
-    if(dirs[e.key]){cameraTween=null;e.preventDefault();const [a,b]=dirs[e.key];if(!e.shiftKey)orbit(a*.006,b*.006);else{dx+=a;dy+=b}schedule()}
+    if(dirs[e.key]){stopCameraMotion();e.preventDefault();const [a,b]=dirs[e.key];if(!e.shiftKey)orbit(a*.006,b*.006);else{dx+=a;dy+=b}schedule()}
     if(['+','=','-'].includes(e.key)){e.preventDefault();magnify(e.key==='-'?.84:1.2)}
     if(e.key==='Home'){e.preventDefault();reset()}
   });
