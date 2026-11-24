@@ -91,8 +91,33 @@
     }
     const status = (id, message) => postMessage({type:"status", id, message});
     let loaded = false;
-    async function handle({id, type, bytes, strength}) {
+    async function handle({id, type, bytes, strength, archive, entry}) {
       try {
+        if (type === "package") {
+          const py = await engine();
+          py.FS.writeFile("/source.3mf",new Uint8Array(await archive.arrayBuffer()));
+          py.FS.writeFile("/smooth.gcode",new Uint8Array(await bytes.arrayBuffer()));
+          py.globals.set("plate_entry",entry);
+          py.runPython(`
+import hashlib, shutil, zipfile
+with zipfile.ZipFile("/source.3mf") as src, zipfile.ZipFile("/output.3mf","w") as dst:
+    names = src.namelist()
+    if names.count(plate_entry) != 1 or len(names) != len(set(names)):
+        raise ValueError("切片包中的盘名不唯一。")
+    dst.comment = src.comment
+    with open("/smooth.gcode","rb") as moves:
+        checksum = hashlib.md5(moves.read()).hexdigest().upper().encode()
+    for info in src.infolist():
+        if info.filename == plate_entry + ".md5":
+            dst.writestr(info,checksum)
+        else:
+            source = open("/smooth.gcode","rb") if info.filename == plate_entry else src.open(info)
+            with source, dst.open(info,"w") as target:
+                shutil.copyfileobj(source,target)
+`);
+          const buffer=py.FS.readFile("/output.3mf").buffer;
+          postMessage({type:"file",id,bytes:buffer},[buffer]);return;
+        }
         if (type === "load") {
           loaded = false;
           status(id, "正在加载本机平滑引擎…");

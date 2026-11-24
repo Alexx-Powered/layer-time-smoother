@@ -1698,12 +1698,13 @@ self.onmessage=async ({data})=>{
   if(file.size>byteLimit)throw Error('文件超过 220 MB。请导出单个物件或单盘切片。');
   let bytes=new Uint8Array(await file.arrayBuffer()),name=file.name;
   const archived=bytes[0]===80&&bytes[1]===75;
+  let archiveEntry=null;
   if(archived){
     const entries=[];
     ZIP.unzipSync(bytes,{filter:f=>{if(/(?:^|\/)[^/]+\.gcode$/i.test(f.name))entries.push(f.name);return false}});
     if(!entries.length)throw Error('这个 3MF 只含模型。请从切片软件导出带 G-code 的切片文件。');
     if(entries.length>1&&!plate){self.postMessage({plates:entries});return}
-    const entry=plate||entries[0];
+    const entry=plate||entries[0]; archiveEntry=entry;
     const infoName=entry.replace(/\.gcode$/i,'.json');
     const files=ZIP.unzipSync(bytes,{filter:f=>{if(f.name===infoName)return f.originalSize<=1048576;if(f.name!==entry)return false;if(f.originalSize>byteLimit)throw Error('该盘解压后超过 220 MB，请导出单个物件。');return true}});
     if(files[infoName]){
@@ -1715,12 +1716,12 @@ self.onmessage=async ({data})=>{
   if(!data.previewOnly&&[2040525,2040830].includes(bytes.length)&&self.crypto?.subtle){
     const digest=new Uint8Array(await crypto.subtle.digest('SHA-256',bytes));
     if(['48e43aa1093eec3eaf07d965e8d4de0639a16328f598a087c40f768cbc381433','6134bb447a36a922f96ffc8795d984fc8f4ba46b572bd76881eca39288b1afcc'].includes(Array.from(digest,v=>v.toString(16).padStart(2,'0')).join(''))){
-      self.postMessage({sameDemo:name,sourceFile,plateInfo,filamentColors:sliceAppearance(new TextDecoder().decode(bytes),plateInfo).colors});return;
+      self.postMessage({sameDemo:name,sourceFile,archiveEntry,plateInfo,filamentColors:sliceAppearance(new TextDecoder().decode(bytes),plateInfo).colors});return;
     }
   }
   const model=parseGcode(new TextDecoder().decode(bytes),name,objectId,plateInfo,estimatedDuration,data.layerTimes);
   buildThermalContacts(model);
-  self.postMessage({model,sourceFile,plateInfo},[model.motion.buffer,model.motionEpochs.buffer,...model.layers.map(layer=>layer[0].xy.buffer),...model.wallPairs.slice(2).map(sides=>sides[0].buffer)]);
+  self.postMessage({model,sourceFile,archiveEntry,plateInfo},[model.motion.buffer,model.motionEpochs.buffer,...model.layers.map(layer=>layer[0].xy.buffer),...model.wallPairs.slice(2).map(sides=>sides[0].buffer)]);
  }catch(error){self.postMessage({error:error.message||'无法读取该文件，请换一个切片文件试试。'})}
 };</script><script>/* Three.js r187
 The MIT License
@@ -7047,7 +7048,7 @@ function readFile(file,plate,objectId){
    pendingFile=null;
    if(result.error){announceStatus(result.error);return}
    try{const m=result.sameDemo?{...demo,filamentColors:result.filamentColors||demo.filamentColors,name:result.sameDemo,imported:true,sameDemo:true}:prepare(result.model);
-     if(result.sameDemo&&m.walls)m.walls={...m.walls,filamentColors:m.filamentColors};install(m);const sourceBlob=result.sourceFile;setSmoothSource(m,()=>sourceBlob,nameForExport(file.name,plate||m.name),result.plateInfo,file,plate);loadedFile=file;loadedPlate=plate;announceStatus(m.objectId?'这盘有 '+m.objectIds.length+' 个物件，可在「分析物件」中切换。冷却按整盘时间计算，切换物件只改变观察对象。':'已载入 '+file.name+'。')}
+     if(result.sameDemo&&m.walls)m.walls={...m.walls,filamentColors:m.filamentColors};install(m);const sourceBlob=result.sourceFile;setSmoothSource(m,()=>sourceBlob,nameForExport(file.name,plate||m.name),result.plateInfo,file,result.archiveEntry||plate);loadedFile=file;loadedPlate=plate;announceStatus(m.objectId?'这盘有 '+m.objectIds.length+' 个物件，可在「分析物件」中切换。冷却按整盘时间计算，切换物件只改变观察对象。':'已载入 '+file.name+'。')}
    catch(err){announceStatus('模型暂时无法显示。'+err.message)}
  };
  job.onerror=e=>{if(token!==loadToken)return;finish();pendingFile=null;announceStatus('读取失败。'+(e.message||'请检查是否为文本 G-code 或切片 3MF。'))};

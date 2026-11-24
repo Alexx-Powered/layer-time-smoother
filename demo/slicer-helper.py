@@ -63,8 +63,10 @@ def viewer_command(app, override, file):
 def export_name(value):
     # The browser supplies a display name only. Always create a new .gcode in a private directory.
     name = unquote(value, errors="replace")
-    name = re.sub(r"[^\w .()\-]", "_", name).strip(" .")[:90] or "model"
-    return "preview-" + re.sub(r"\.gcode$", "", name, flags=re.I) + ".gcode"
+    suffix = ".gcode.3mf" if name.lower().endswith(".gcode.3mf") else ".gcode"
+    stem = name[:-len(suffix)] if name.lower().endswith(suffix) else name
+    name = re.sub(r"[^\w .()\-]", "_", stem).strip(" .")[:90] or "model"
+    return "preview-" + name + suffix
 
 
 class OpenGcode(BaseHTTPRequestHandler):
@@ -95,7 +97,7 @@ class OpenGcode(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def do_OPTIONS(self):
-        self.respond(200 if self.trusted() and self.path in ("/open/bambu", "/open/orca") else 403)
+        self.respond(200 if self.trusted() and self.path in ("/open/bambu", "/open/orca", "/open-package/bambu", "/open-package/orca") else 403)
 
     def do_POST(self):
         if not self.trusted():
@@ -103,7 +105,7 @@ class OpenGcode(BaseHTTPRequestHandler):
         supplied = self.headers.get("X-Slicer-Token", "").encode("utf-8")
         if not hmac.compare_digest(supplied, self.server.token.encode()):
             return self.respond(403, "配对码已失效，请复制助手当前显示的配对码。")
-        if self.path not in ("/open/bambu", "/open/orca"):
+        if self.path not in ("/open/bambu", "/open/orca", "/open-package/bambu", "/open-package/orca"):
             return self.respond(404)
         if self.headers.get_content_type() != "application/octet-stream":
             return self.respond(415, "需要 G-code 文件。")

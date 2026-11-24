@@ -26,9 +26,9 @@
     const timeout = setTimeout(() => controller.abort(), 120_000);
     let response;
     try {
-      response = await fetch('http://127.0.0.1:' + parts[1] + '/open/' + app, {
+      response = await fetch('http://127.0.0.1:' + parts[1] + (filename.endsWith('.gcode.3mf') ? '/open-package/' : '/open/') + app, {
         method: 'POST', mode: 'cors', credentials: 'omit', redirect: 'error', referrerPolicy: 'no-referrer',
-        headers: {'Content-Type': 'application/octet-stream', 'X-Slicer-Token': parts[2], 'X-Gcode-Name': encodeURIComponent(filename.slice(0, 150))},
+        headers: {'Content-Type': 'application/octet-stream', 'X-Slicer-Token': parts[2], 'X-Gcode-Name': encodeURIComponent(filename.slice(-150))},
         body: blob, signal: controller.signal
       });
     } catch {
@@ -37,6 +37,7 @@
       clearTimeout(timeout);
     }
     if (!response.ok) {
+      if(response.status===404 && filename.endsWith('.gcode.3mf'))throw Error('请下载并运行新版打开助手以支持 .gcode.3mf。');
       const result = await response.json().catch(() => ({}));
       throw new Error(result.message || ('助手未能打开文件（' + response.status + '）。'));
     }
@@ -110,6 +111,7 @@
     const result = panel.querySelector('.result');
     const save = panel.querySelector('.save');
     panel.querySelector('h2').textContent = '在 ' + names[app] + ' 中打开';
+    save.textContent=filename.endsWith('.gcode.3mf')?'下载切片包':'下载 G-code';
     panel.querySelector('.instructions').textContent = '配对后可从此页直接打开本机文件。也可以下载 G-code，再拖入 ' + names[app] + '。';
     const devOrigin = /^http:\/\/(?:localhost|127\.0\.0\.1):\d+$/.test(location.origin);
     const option = location.protocol === 'file:' ? ' --allow-file' : devOrigin ? ' --origin ' + location.origin : '';

@@ -328,15 +328,39 @@ window.createSmoothingPanel = function ({apply, clear, cancelPreview, inspect}) 
   slider.oninput=()=>choose(slider.valueAsNumber);
   slider.onchange=commitChoice;
   el('smoothAuto').onclick=()=>{choose(null);commitChoice()};
-  function name(){
-    const suffix=strength===null?'auto':String(strength);
-    return plate.name+'-smooth-'+suffix+'.gcode';
-  }
-  el('smoothExport').onclick=()=>{
+  async function exportFile(app){
     if(!output)return;
-    const a=document.createElement('a'),url=URL.createObjectURL(output);
-    a.href=url;a.download=name();a.click();setTimeout(()=>URL.revokeObjectURL(url),60000);
-  };
+    const owner=plate, blob=output, revision=selection;
+    const suffix=strength===null?'auto':String(strength);
+    const filename=owner.name+'-smooth-'+suffix+(owner.plateName?'.gcode.3mf':'.gcode');
+    let result=blob;
+    try {
+      if(owner.plateName){
+        setStatus('正在封装切片盘…');
+        if(owner.packedSource!==blob){
+          owner.packedSource=blob;
+          const worker=LayerSmoothingWorker.create();
+          owner.packed=new Promise((resolve,reject)=>{
+            worker.onmessage=({data})=>data.type==='file'?resolve(new Blob([data.bytes])):reject(Error(data.message));
+            worker.onerror=e=>reject(Error(e.message));
+            worker.postMessage({type:'package',archive:owner.identity,entry:owner.plateName,bytes:blob});
+          }).finally(()=>worker.terminate());
+        }
+        result=await owner.packed;
+      }
+      if(selection!==revision||plate!==owner||blob!==output)return;
+      if(app)await window.SlicerOpen.open(app,result,filename);
+      else{
+        const a=document.createElement('a'),url=URL.createObjectURL(result);
+        a.href=url;a.download=filename;a.click();setTimeout(()=>URL.revokeObjectURL(url),60000);
+      }
+      if(owner.plateName)setStatus('切片包已生成。');
+    }catch(error){
+      if(owner.packedSource===blob)owner.packedSource=null;
+      if(selection===revision)setStatus('导出失败。'+error.message);
+    }
+  }
+  el('smoothExport').onclick=()=>exportFile();
   el('exportMenuButton').onclick=()=>{
     menu.hidden=!menu.hidden;el('exportMenuButton').setAttribute('aria-expanded',String(!menu.hidden));
     if(!menu.hidden)menu.querySelector('button').focus();
@@ -344,7 +368,7 @@ window.createSmoothingPanel = function ({apply, clear, cancelPreview, inspect}) 
   menu.onclick=async e=>{
     const button=e.target.closest('[data-slicer]');if(!button||!output)return;
     closeMenu();el('exportMenuButton').focus();
-    await window.SlicerOpen.open(button.dataset.slicer,output,name());
+    await exportFile(button.dataset.slicer);
   };
   document.addEventListener('click',e=>{if(!e.target.closest('.exportWrap'))closeMenu()});
   document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!menu.hidden){closeMenu();el('exportMenuButton').focus()}});
@@ -358,6 +382,7 @@ window.createSmoothingPanel = function ({apply, clear, cancelPreview, inspect}) 
       else if(entry)void present(entry,false,revision);
       return;
     }
+    el('smoothExport').textContent=next.plateName?'导出平滑 .gcode.3mf':'导出平滑 G-code';
     plate?.close();plate=makePlate(next);current=null;enabled=false;strength=null;output=null;chart=null;
     slider.value=65;panel.hidden=true;painted=[];opacity=0;drawChart();controls();
     el('layerReadout').textContent='';el('smoothTotal').textContent=el('smoothCost').textContent='—';
